@@ -85,9 +85,15 @@ base: '/vlingual-cards/' // GitHub Pages用のベースパス
 
 ### CSV Data Source (types.ts)
 
+**GitHub連携**: アプリは GitHub Raw から直接CSVを読み込みます。
+
 ```typescript
-DEFAULT_CSV_URL = "https://raw.githubusercontent.com/w-udagawa/vlingual-cards/main/vocab.csv"
+DEFAULT_CSV_URL = "https://raw.githubusercontent.com/w-udagawa/vlingual-cards/main/public/vocab.csv"
 ```
+
+**CSV更新ワークフロー**:
+1. GitHub Web UI で `public/vocab.csv` を編集
+2. コミット → 即座にアプリに反映（**再デプロイ不要**）
 
 CSV形式:
 ```
@@ -95,6 +101,7 @@ CSV形式:
 accomplish,達成する,中級,動詞,"例文 (日本語訳)",https://youtube.com/@VlingualChannel
 ```
 
+**必須ルール**:
 - 難易度: 必ず `初級` / `中級` / `上級` のいずれか
 - 文脈にカンマや改行がある場合はダブルクォートで囲む
 - エスケープされたクォート（`""`）に対応
@@ -185,6 +192,44 @@ npm run deploy
 2. `vite build`: 本番ビルド（dist/に出力）
 3. `gh-pages -d dist`: dist/を gh-pages ブランチにpush
 
+## Debugging
+
+### 構造化ログ（vibelogger風）
+
+ブラウザのDevToolsコンソールで以下のログを確認できます：
+
+```javascript
+[CSV_LOAD] {
+  operation: "loadCSV",
+  url: "https://raw.githubusercontent.com/.../vocab.csv",
+  status: "success",
+  cardCount: 20,
+  timestamp: "2025-10-21T13:04:11.708Z"
+}
+
+[CARD_SELECT] {
+  operation: "selectNextCard",
+  strategy: "unseen",  // または "score"
+  word: "accomplish",
+  unseenCount: 10,     // または score
+  timestamp: "2025-10-21T13:04:11.709Z"
+}
+
+[CARD_RATE] {
+  operation: "handleRate",
+  word: "accomplish",
+  rating: "ok",  // "again" | "ok" | "easy"
+  previousProgress: { seen: 0, again: 0, ok: 0, easy: 0 },
+  newProgress: { seen: 1, again: 0, ok: 1, easy: 0 },
+  timestamp: "2025-10-21T13:04:15.123Z"
+}
+```
+
+**ログの見方**:
+- `[CSV_LOAD]`: CSV読み込みの成功/失敗、単語数
+- `[CARD_SELECT]`: どの戦略でカードが選ばれたか
+- `[CARD_RATE]`: 評価の履歴と進捗の変化
+
 ## Troubleshooting
 
 ### Vite Dev Server Error
@@ -198,6 +243,14 @@ npm run deploy
 - `types.ts` の `SAMPLE_DATA` がフォールバックとして使用される
 - エラー画面に「サンプルで試す」ボタンが表示される
 - CSV形式が正しいか確認（特に難易度の値）
+- DevToolsコンソールで `[CSV_LOAD]` ログを確認
+
+### Browser Cache Issues
+
+デプロイ後に変更が反映されない場合:
+- ハードリロード: Ctrl+Shift+R (Windows) / Cmd+Shift+R (Mac)
+- シークレットウィンドウで開く
+- ブラウザキャッシュをクリア
 
 ### Build Warning (Node.js Version)
 
@@ -221,5 +274,8 @@ You are using Node.js 18.19.1. Vite requires Node.js version 20.19+ or 22.12+.
 
 ---
 
-**Version**: 1.0.0
+**Version**: 1.1.0
 **Last Updated**: 2025-10-21
+**Changes**:
+- GitHub Raw CSV連携（再デプロイ不要）
+- 構造化ログ追加（デバッグ用）

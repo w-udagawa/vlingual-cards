@@ -8,14 +8,15 @@ Vlingual Cardsは、YouTubeチャンネル「Vlingual Channel」の英語学習�
 
 ### 主な機能
 
-- ✅ **CSV自動ロード** - GitHub Rawから語彙データを自動取得
+- ✅ **GitHub連携CSV** - GitHub上のCSVを直接読み込み（編集→即反映、再デプロイ不要）
 - ✅ **3Dフリップカード** - タップで表裏を切り替え
 - ✅ **スマートスケジューリング** - 未学習カード優先 → スコア順復習
 - ✅ **3段階評価** - 覚えてない / だいたいOK / 余裕
 - ✅ **音声読み上げ** - 英単語の発音を確認（Web Speech API）
 - ✅ **進捗保存** - localStorageで学習履歴を自動保存
 - ✅ **レスポンシブデザイン** - スマホ・タブレット・PC対応
-- ✅ **PWA対応** - オフラインでも動作（manifest.json）
+- ✅ **PWA対応** - manifest.json実装済み
+- ✅ **構造化ログ** - デバッグ用の詳細ログ（DevToolsで確認可能）
 
 ## デモ
 
@@ -148,11 +149,27 @@ accomplish,達成する,中級,動詞,"I want to accomplish my goals this year. 
 | 文脈 | 例文（英語＋日本語） | ✅ | I want to accomplish my goals this year. (今年は目標を達成したい) |
 | 動画URL | 関連動画へのリンク | ✅ | https://youtube.com/@VlingualChannel |
 
-### CSV更新方法
+### CSV更新方法（GitHub連携）
 
-1. リポジトリのルートに`vocab.csv`を配置
-2. GitHub上で直接編集するか、ローカルで編集してコミット
-3. アプリ起動時に自動で最新のCSVを取得
+**重要**: アプリは`https://raw.githubusercontent.com/w-udagawa/vlingual-cards/main/public/vocab.csv`から直接読み込みます。
+
+#### オンライン編集（推奨）
+1. GitHubリポジトリ: https://github.com/w-udagawa/vlingual-cards
+2. `public/vocab.csv`をクリック
+3. 鉛筆アイコン（Edit）をクリック
+4. データを編集
+5. "Commit changes"をクリック
+6. **即座にアプリに反映**（再デプロイ不要）
+
+#### ローカル編集
+1. `public/vocab.csv`を編集
+2. `git add public/vocab.csv && git commit -m "Update vocabulary"`
+3. `git push origin main`
+4. 自動で反映（再デプロイ不要）
+
+#### 注意
+- CSVフォーマットを厳守（特に難易度は`初級`/`中級`/`上級`のみ）
+- カンマを含む文脈はダブルクォートで囲む
 
 ## スマートスケジューリング
 
@@ -253,5 +270,8 @@ Vlingual Channelの視聴者の皆様の学習をサポートできれば幸い�
 
 ---
 
-**バージョン**: 1.0.0
+**バージョン**: 1.1.0
 **最終更新**: 2025-10-21
+**更新内容**:
+- GitHub連携CSV（CSV編集→即反映、再デプロイ不要）
+- 構造化ログ追加（開発者向けデバッグ機能）
