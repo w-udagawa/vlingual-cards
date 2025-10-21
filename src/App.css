@@ -1,0 +1,412 @@
+/* アプリのメインスタイル */
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  padding: 20px;
+}
+
+/* ローディング画面 */
+.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 50vh;
+  gap: 16px;
+}
+
+.spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* エラー画面 */
+.error-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 50vh;
+  gap: 16px;
+  text-align: center;
+  padding: 20px;
+}
+
+.error-icon {
+  font-size: 64px;
+}
+
+.error-message {
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+}
+
+.error-buttons {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.btn-retry,
+.btn-sample {
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  min-width: 120px;
+}
+
+.btn-retry {
+  background-color: var(--primary);
+  color: white;
+}
+
+.btn-sample {
+  background-color: var(--card-bg);
+  color: var(--text-primary);
+  border: 2px solid var(--border);
+}
+
+/* 警告バナー */
+.warning-banner {
+  background-color: var(--ok-bg);
+  color: var(--ok-text);
+  padding: 12px 20px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.btn-link {
+  background: none;
+  color: var(--ok-text);
+  text-decoration: underline;
+  padding: 0;
+}
+
+/* ヘッダー */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo {
+  width: 40px;
+  height: 40px;
+  background-color: var(--primary);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 18px;
+  color: white;
+}
+
+.app-name {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.today-count {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.icon-button {
+  background: none;
+  font-size: 24px;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* カードコンテナ */
+.card-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  max-width: 640px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* カード（3Dフリップ） */
+.card {
+  width: 100%;
+  max-width: 640px;
+  height: 320px;
+  position: relative;
+  perspective: 1000px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.card-face {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  background-color: var(--card-bg);
+  border: 2px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.5s ease-in-out;
+  transform-style: preserve-3d;
+}
+
+.card-front {
+  transform: rotateY(0deg);
+  justify-content: space-between;
+}
+
+.card.flipped .card-front {
+  transform: rotateY(180deg);
+}
+
+.card-back {
+  transform: rotateY(-180deg);
+  justify-content: flex-start;
+  gap: 16px;
+}
+
+.card.flipped .card-back {
+  transform: rotateY(0deg);
+}
+
+/* カード表面 */
+.card-header {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.level-badge {
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: white;
+}
+
+.part-tag {
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  background-color: var(--border);
+  color: var(--text-secondary);
+}
+
+.card-word {
+  font-size: 48px;
+  font-weight: 700;
+  text-align: center;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.card-hint {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+/* カード裏面 */
+.card-translation {
+  font-size: 32px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--primary);
+}
+
+.card-context {
+  background-color: var(--background);
+  padding: 16px;
+  border-radius: 8px;
+  font-size: 16px;
+  line-height: 1.6;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.video-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--primary);
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background-color: var(--border);
+  text-align: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.video-link:hover {
+  background-color: var(--primary);
+  color: white;
+  text-decoration: none;
+}
+
+/* 評価ボタン */
+.rating-buttons {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  max-width: 640px;
+}
+
+.btn-rating {
+  flex: 1;
+  padding: 16px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  min-height: 48px;
+  transition: all 0.2s;
+}
+
+.btn-again {
+  background-color: var(--again-bg);
+  color: var(--again-text);
+  border: 2px solid var(--again-border);
+}
+
+.btn-again:hover {
+  background-color: var(--again-border);
+  color: white;
+}
+
+.btn-ok {
+  background-color: var(--ok-bg);
+  color: var(--ok-text);
+  border: 2px solid var(--ok-border);
+}
+
+.btn-ok:hover {
+  background-color: var(--ok-border);
+  color: white;
+}
+
+.btn-easy {
+  background-color: var(--easy-bg);
+  color: var(--easy-text);
+  border: 2px solid var(--easy-border);
+}
+
+.btn-easy:hover {
+  background-color: var(--easy-border);
+  color: white;
+}
+
+/* フッター */
+.footer {
+  margin-top: 24px;
+  display: flex;
+  justify-content: center;
+}
+
+.btn-reset {
+  padding: 12px 24px;
+  border-radius: 8px;
+  background-color: var(--card-bg);
+  color: var(--text-secondary);
+  border: 2px solid var(--border);
+  font-size: 14px;
+}
+
+.btn-reset:hover {
+  color: var(--again-text);
+  border-color: var(--again-border);
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 640px) {
+  .app {
+    padding: 12px;
+  }
+
+  .card {
+    height: 280px;
+  }
+
+  .card-word {
+    font-size: 36px;
+  }
+
+  .card-translation {
+    font-size: 24px;
+  }
+
+  .card-context {
+    font-size: 14px;
+  }
+
+  .rating-buttons {
+    flex-direction: column;
+  }
+
+  .btn-rating {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-name {
+    font-size: 16px;
+  }
+
+  .card {
+    height: 240px;
+  }
+
+  .card-word {
+    font-size: 28px;
+  }
+
+  .card-translation {
+    font-size: 20px;
+  }
+}

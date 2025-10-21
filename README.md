@@ -1,0 +1,210 @@
+# Vlingual Cards
+
+**Vlingual Channel**の英語学習語彙をスマホで復習できるPWAアプリ
+
+## 概要
+
+Vlingual Cardsは、YouTubeチャンネル「Vlingual Channel」の英語学習コンテンツで学んだ語彙を効率的に復習するためのフラッシュカードアプリです。
+
+### 主な機能
+
+- ✅ **CSV自動ロード** - GitHub Rawから語彙データを自動取得
+- ✅ **3Dフリップカード** - タップで表裏を切り替え
+- ✅ **スマートスケジューリング** - 未学習カード優先 → スコア順復習
+- ✅ **3段階評価** - 覚えてない / だいたいOK / 余裕
+- ✅ **音声読み上げ** - 英単語の発音を確認（Web Speech API）
+- ✅ **進捗保存** - localStorageで学習履歴を自動保存
+- ✅ **レスポンシブデザイン** - スマホ・タブレット・PC対応
+- ✅ **PWA対応** - オフラインでも動作（manifest.json）
+
+## デモ
+
+（デプロイ後にURLを追加予定）
+
+## 技術スタック
+
+- **フレームワーク**: React 18 + TypeScript
+- **ビルドツール**: Vite
+- **スタイリング**: カスタムCSS（CSS Variables使用）
+- **デプロイ**: GitHub Pages
+
+## ローカル開発
+
+### 前提条件
+
+- Node.js 18以上（推奨: 20以上）
+- npm 9以上
+
+### セットアップ
+
+```bash
+# リポジトリをクローン
+git clone https://github.com/w-udagawa/vlingual-cards.git
+cd vlingual-cards
+
+# 依存関係をインストール
+npm install
+
+# 開発サーバーを起動
+npm run dev
+```
+
+開発サーバーが起動したら、ブラウザで http://localhost:5173 にアクセスしてください。
+
+### ビルド
+
+```bash
+# 本番用ビルド
+npm run build
+
+# ビルド結果をプレビュー
+npm run preview
+```
+
+## デプロイ
+
+GitHub Pagesにデプロイするには、以下のコマンドを実行します：
+
+```bash
+npm run deploy
+```
+
+このコマンドは以下を実行します：
+1. TypeScriptのコンパイル
+2. Viteでの本番ビルド
+3. `dist/`ディレクトリを`gh-pages`ブランチにプッシュ
+
+### デプロイ前の準備
+
+1. GitHubリポジトリを作成
+2. リポジトリの設定で GitHub Pages を有効化
+   - Settings > Pages > Source: `gh-pages` branch
+3. `vite.config.ts`の`base`をリポジトリ名に合わせて設定
+
+## CSVデータ形式
+
+語彙データは以下の形式のCSVファイルで管理します：
+
+```csv
+単語,和訳,難易度,品詞,文脈,動画URL
+accomplish,達成する,中級,動詞,"I want to accomplish my goals this year. (今年は目標を達成したい)",https://youtube.com/@VlingualChannel
+```
+
+### 列の説明
+
+| 列名 | 説明 | 必須 | 例 |
+|------|------|------|-----|
+| 単語 | 英単語 | ✅ | accomplish |
+| 和訳 | 日本語訳 | ✅ | 達成する |
+| 難易度 | 初級/中級/上級 | ✅ | 中級 |
+| 品詞 | 動詞/形容詞/名詞など | ✅ | 動詞 |
+| 文脈 | 例文（英語＋日本語） | ✅ | I want to accomplish my goals this year. (今年は目標を達成したい) |
+| 動画URL | 関連動画へのリンク | ✅ | https://youtube.com/@VlingualChannel |
+
+### CSV更新方法
+
+1. リポジトリのルートに`vocab.csv`を配置
+2. GitHub上で直接編集するか、ローカルで編集してコミット
+3. アプリ起動時に自動で最新のCSVを取得
+
+## スマートスケジューリング
+
+学習効率を最大化するため、以下のアルゴリズムで次のカードを選択します：
+
+1. **未学習カード優先** - `seen === 0`のカードがあればランダム選択
+2. **スコア降順ソート** - 全て学習済みの場合、スコアの高い順に復習
+   - スコア計算式: `seen × 1 + again × 3 - easy`
+
+### 評価の意味
+
+- **覚えてない** (again) - スコア +4 （+1 seen, +3 again）
+- **だいたいOK** (ok) - スコア +2 （+1 seen, +1 ok）
+- **余裕** (easy) - スコア +0 （+1 seen, +1 easy, -1 スコア）
+
+## 進捗データ
+
+進捗はlocalStorageに以下の形式で保存されます：
+
+```json
+{
+  "accomplish": {
+    "seen": 3,
+    "again": 1,
+    "ok": 1,
+    "easy": 1
+  },
+  "resilient": {
+    "seen": 1,
+    "again": 0,
+    "ok": 0,
+    "easy": 1
+  }
+}
+```
+
+### リセット方法
+
+アプリ下部の「進捗リセット」ボタンをクリックすると、確認ダイアログの後、全ての進捗データが削除されます。
+
+## 音声読み上げ
+
+- **対応ブラウザ**: Chrome、Safari、Edge（Web Speech API対応ブラウザ）
+- **言語**: 英語（en-US）
+- **速度**: 0.9倍速
+- **トグル**: ヘッダーの🔊/🔇アイコンで切り替え
+- **デフォルト**: OFF
+
+## ディレクトリ構成
+
+```
+vlingual-cards/
+├── public/
+│   └── manifest.json          # PWAマニフェスト
+├── src/
+│   ├── App.tsx               # メインコンポーネント
+│   ├── App.css               # アプリのスタイル
+│   ├── main.tsx              # エントリーポイント
+│   ├── index.css             # グローバルスタイル
+│   └── types.ts              # TypeScript型定義
+├── package.json
+├── vite.config.ts            # Vite設定
+└── README.md
+```
+
+## トラブルシューティング
+
+### CSVが読み込めない
+
+- ネットワーク接続を確認してください
+- GitHubのRaw URLが正しいか確認してください（`https://raw.githubusercontent.com/...`）
+- エラー画面の「サンプルで試す」ボタンでサンプルデータを使用できます
+
+### 音声が再生されない
+
+- ブラウザがWeb Speech APIに対応しているか確認してください
+- 音声トグル（🔊/🔇）がONになっているか確認してください
+- ブラウザの音声設定を確認してください
+
+### 進捗が保存されない
+
+- ブラウザのlocalStorageが有効になっているか確認してください
+- プライベートブラウジングモードでは保存されません
+
+## ライセンス
+
+MIT License
+
+## 作者
+
+- **開発者**: w-udagawa
+- **チャンネル**: [Vlingual Channel](https://youtube.com/@VlingualChannel)
+
+## 謝辞
+
+このアプリは英語学習者の復習効率を向上させることを目的として開発されました。
+Vlingual Channelの視聴者の皆様の学習をサポートできれば幸いです。
+
+---
+
+**バージョン**: 1.0.0
+**最終更新**: 2025-10-21
