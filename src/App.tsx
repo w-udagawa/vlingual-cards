@@ -93,6 +93,14 @@ function App() {
 
   // CSV読み込み
   const loadCSV = async () => {
+    const timestamp = new Date().toISOString();
+    console.log('[CSV_LOAD]', {
+      operation: 'loadCSV',
+      url: DEFAULT_CSV_URL,
+      status: 'start',
+      timestamp
+    });
+
     try {
       setLoading(true);
       setError(null);
@@ -105,8 +113,22 @@ function App() {
       const text = await response.text();
       const parsedCards = parseCSV(text);
       setCards(parsedCards);
+
+      console.log('[CSV_LOAD]', {
+        operation: 'loadCSV',
+        status: 'success',
+        cardCount: parsedCards.length,
+        timestamp: new Date().toISOString()
+      });
     } catch (err) {
-      console.error('CSV読み込みエラー:', err);
+      console.error('[CSV_LOAD]', {
+        operation: 'loadCSV',
+        status: 'error',
+        error: err instanceof Error ? err.message : '不明なエラー',
+        errorStack: err instanceof Error ? err.stack : undefined,
+        fallback: 'SAMPLE_DATA',
+        timestamp: new Date().toISOString()
+      });
       setError(err instanceof Error ? err.message : '不明なエラーが発生しました');
       setCards(SAMPLE_DATA); // フォールバック
     } finally {
@@ -146,7 +168,15 @@ function App() {
     });
 
     if (unseenCards.length > 0) {
-      return unseenCards[Math.floor(Math.random() * unseenCards.length)];
+      const selected = unseenCards[Math.floor(Math.random() * unseenCards.length)];
+      console.log('[CARD_SELECT]', {
+        operation: 'selectNextCard',
+        strategy: 'unseen',
+        word: selected.単語,
+        unseenCount: unseenCards.length,
+        timestamp: new Date().toISOString()
+      });
+      return selected;
     }
 
     // 2. 全て学習済みの場合、スコア降順ソート
@@ -156,7 +186,15 @@ function App() {
     };
 
     const sortedCards = [...allCards].sort((a, b) => score(b.単語) - score(a.単語));
-    return sortedCards[0];
+    const selected = sortedCards[0];
+    console.log('[CARD_SELECT]', {
+      operation: 'selectNextCard',
+      strategy: 'score',
+      word: selected.単語,
+      score: score(selected.単語),
+      timestamp: new Date().toISOString()
+    });
+    return selected;
   };
 
   // 評価処理
@@ -175,6 +213,15 @@ function App() {
         easy: currentP.easy + (type === 'easy' ? 1 : 0)
       }
     };
+
+    console.log('[CARD_RATE]', {
+      operation: 'handleRate',
+      word,
+      rating: type,
+      previousProgress: currentP,
+      newProgress: newProgress[word],
+      timestamp: new Date().toISOString()
+    });
 
     saveProgress(newProgress);
     setTodayCount(prev => prev + 1);

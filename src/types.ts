@@ -103,8 +103,9 @@ export const SAMPLE_DATA: VocabCard[] = [
   }
 ];
 
-// デフォルトのCSV URL
-export const DEFAULT_CSV_URL = "https://raw.githubusercontent.com/w-udagawa/vlingual-cards/main/vocab.csv";
+// デフォルトのCSV URL（GitHub Raw）
+// GitHub上でCSVを直接編集すれば即反映、再デプロイ不要
+export const DEFAULT_CSV_URL = "https://raw.githubusercontent.com/w-udagawa/vlingual-cards/main/public/vocab.csv";
 
 // localStorage キー
 export const PROGRESS_STORAGE_KEY = "vocab_progress";
