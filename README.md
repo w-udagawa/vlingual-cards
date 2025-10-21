@@ -19,7 +19,9 @@ Vlingual Cardsは、YouTubeチャンネル「Vlingual Channel」の英語学習�
 
 ## デモ
 
-（デプロイ後にURLを追加予定）
+🌐 **https://w-udagawa.github.io/vlingual-cards/**
+
+スマホ・タブレット・PCのブラウザからアクセスできます。
 
 ## 技術スタック
 
@@ -74,12 +76,57 @@ npm run deploy
 2. Viteでの本番ビルド
 3. `dist/`ディレクトリを`gh-pages`ブランチにプッシュ
 
-### デプロイ前の準備
+### 初回デプロイ手順
 
-1. GitHubリポジトリを作成
-2. リポジトリの設定で GitHub Pages を有効化
-   - Settings > Pages > Source: `gh-pages` branch
-3. `vite.config.ts`の`base`をリポジトリ名に合わせて設定
+#### 1. GitHubリポジトリを作成
+
+https://github.com/new で新規リポジトリを作成：
+- Repository name: `vlingual-cards`
+- Public リポジトリとして作成
+- **Initialize with README は選択しない**
+
+#### 2. ローカルコードをプッシュ
+
+```bash
+cd vlingual-cards
+
+# Gitリポジトリを初期化
+git init
+git add .
+git commit -m "Initial commit: Vlingual Cards Phase 1 MVP"
+
+# GitHubリポジトリと接続
+git remote add origin https://github.com/YOUR_USERNAME/vlingual-cards.git
+git branch -M main
+git push -u origin main
+```
+
+#### 3. GitHub Pagesにデプロイ
+
+```bash
+npm run deploy
+```
+
+このコマンドで `gh-pages` ブランチが自動作成されます。
+
+#### 4. GitHub Pages設定を有効化
+
+GitHubリポジトリで以下を設定：
+1. **Settings** タブを開く
+2. 左サイドバーから **Pages** を選択
+3. **Source**: `Deploy from a branch` を選択
+4. **Branch**: `gh-pages` / `/ (root)` を選択
+5. **Save** をクリック
+
+数分後、`https://YOUR_USERNAME.github.io/vlingual-cards/` で公開されます。
+
+### 2回目以降のデプロイ
+
+コード変更後、以下を実行するだけでOK：
+
+```bash
+npm run deploy
+```
 
 ## CSVデータ形式
 

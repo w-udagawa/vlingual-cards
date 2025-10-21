@@ -143,12 +143,36 @@ import { VocabCard, SAMPLE_DATA } from './types';
 
 ## Deployment
 
+### Live Demo
+
+🌐 **https://w-udagawa.github.io/vlingual-cards/**
+
 ### GitHub Pages Setup
 
-1. GitHubリポジトリ作成
-2. Settings > Pages > Source: **gh-pages branch** を選択
-3. `npm run deploy` 実行
-4. 数分後に `https://<username>.github.io/vlingual-cards/` で公開
+#### 初回デプロイ
+
+1. GitHubリポジトリ作成（https://github.com/w-udagawa/vlingual-cards）
+2. ローカルからpush:
+   ```bash
+   git init
+   git add .
+   git commit -m "Initial commit"
+   git remote add origin https://github.com/w-udagawa/vlingual-cards.git
+   git branch -M main
+   git push -u origin main
+   ```
+3. デプロイ実行:
+   ```bash
+   npm run deploy
+   ```
+4. GitHub Settings > Pages > Source: **gh-pages branch** / **/ (root)** を選択
+5. 数分後に公開
+
+#### 2回目以降
+
+```bash
+npm run deploy
+```
 
 ### Deploy Command Details
 
