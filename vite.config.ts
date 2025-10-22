@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
-  base: '/vlingual-cards/', // GitHub Pages用のベースパス
+  base: '/', // Vercel用のベースパス（ルート配置）
   build: {
     outDir: 'dist'
   }

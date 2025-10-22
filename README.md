@@ -21,7 +21,7 @@ Vlingual Cardsは、YouTubeチャンネル「Vlingual Channel」の英語学習�
 
 ## デモ
 
-🌐 **https://w-udagawa.github.io/vlingual-cards/**
+🌐 **https://vlingual-cards.vercel.app**
 
 スマホ・タブレット・PCのブラウザからアクセスできます。
 
@@ -30,7 +30,7 @@ Vlingual Cardsは、YouTubeチャンネル「Vlingual Channel」の英語学習�
 - **フレームワーク**: React 18 + TypeScript
 - **ビルドツール**: Vite
 - **スタイリング**: カスタムCSS（CSS Variables使用）
-- **デプロイ**: GitHub Pages
+- **デプロイ**: Vercel（自動デプロイ）
 
 ## ローカル開発
 
@@ -53,7 +53,7 @@ npm install
 npm run dev
 ```
 
-開発サーバーが起動したら、ブラウザで http://localhost:5173/vlingual-cards/ にアクセスしてください。
+開発サーバーが起動したら、ブラウザで http://localhost:5173/ にアクセスしてください。
 
 ### ビルド
 
@@ -67,68 +67,36 @@ npm run preview
 
 ## デプロイ
 
-GitHub Pagesにデプロイするには、以下のコマンドを実行します：
+### Vercelへのデプロイ（推奨）
+
+このプロジェクトはVercelに自動デプロイされます。
+
+#### 初回デプロイ手順
+
+1. **Vercelアカウント作成**: https://vercel.com/signup
+2. **GitHubリポジトリと連携**:
+   - Vercel ダッシュボードで「New Project」をクリック
+   - GitHubリポジトリ `w-udagawa/vlingual-cards` を選択
+   - **Framework Preset**: Vite が自動検出される
+   - **Build Command**: `npm run build` （自動設定）
+   - **Output Directory**: `dist` （自動設定）
+   - 「Deploy」をクリック
+
+3. **デプロイ完了**:
+   - 数分後に `https://vlingual-cards.vercel.app` で公開されます
+   - 以降、`main` ブランチへのpush時に自動デプロイ
+
+#### 2回目以降のデプロイ
+
+コード変更後、GitHubにpushするだけでOK：
 
 ```bash
-npm run deploy
-```
-
-このコマンドは以下を実行します：
-1. TypeScriptのコンパイル
-2. Viteでの本番ビルド
-3. `dist/`ディレクトリを`gh-pages`ブランチにプッシュ
-
-### 初回デプロイ手順
-
-#### 1. GitHubリポジトリを作成
-
-https://github.com/new で新規リポジトリを作成：
-- Repository name: `vlingual-cards`
-- Public リポジトリとして作成
-- **Initialize with README は選択しない**
-
-#### 2. ローカルコードをプッシュ
-
-```bash
-cd vlingual-cards
-
-# Gitリポジトリを初期化
-git init
 git add .
-git commit -m "Initial commit: Vlingual Cards Phase 1 MVP"
-
-# GitHubリポジトリと接続
-git remote add origin https://github.com/YOUR_USERNAME/vlingual-cards.git
-git branch -M main
-git push -u origin main
+git commit -m "Update: 機能追加"
+git push origin main
 ```
 
-#### 3. GitHub Pagesにデプロイ
-
-```bash
-npm run deploy
-```
-
-このコマンドで `gh-pages` ブランチが自動作成されます。
-
-#### 4. GitHub Pages設定を有効化
-
-GitHubリポジトリで以下を設定：
-1. **Settings** タブを開く
-2. 左サイドバーから **Pages** を選択
-3. **Source**: `Deploy from a branch` を選択
-4. **Branch**: `gh-pages` / `/ (root)` を選択
-5. **Save** をクリック
-
-数分後、`https://YOUR_USERNAME.github.io/vlingual-cards/` で公開されます。
-
-### 2回目以降のデプロイ
-
-コード変更後、以下を実行するだけでOK：
-
-```bash
-npm run deploy
-```
+Vercelが自動的にビルド・デプロイを実行します（所要時間: 1〜2分）。
 
 ## CSVデータ形式
 
@@ -300,12 +268,12 @@ Vlingual Channelの視聴者の皆様の学習をサポートできれば幸い�
 
 ---
 
-**バージョン**: 1.2.0
+**バージョン**: 1.3.0
 **最終更新**: 2025-10-22
 **更新内容**:
-- 複数動画対応（ギャラリー形式の動画選択画面）
-- YouTubeサムネイル表示
-- 動画ごとの進捗管理
-- 構造化ログ実装（デバッグ用）
-- 7列CSV形式対応（動画タイトル列追加）
-- HOW_TO_USE.md（日本語使い方ガイド）追加
+- Vercelへの移行（GitHub Pagesから）
+- アプリ内「使い方」ヘルプモーダル追加
+- PWAアイコン実装（SVG形式、192x192 / 512x512）
+- PWAインストール促進バナー追加（初回アクセス時表示）
+- DISTRIBUTION.md（視聴者向け配布案内）追加
+- 自動デプロイ設定（GitHub push時）

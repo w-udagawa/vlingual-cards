@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Essential Commands
 
 ```bash
-# 開発サーバー起動（http://localhost:5173/vlingual-cards/）
+# 開発サーバー起動（http://localhost:5173/）
 npm run dev
 
 # 本番ビルド（TypeScriptコンパイル + Viteビルド）
@@ -21,8 +21,8 @@ npm run preview
 # ESLint実行
 npm run lint
 
-# GitHub Pagesへデプロイ（ビルド + gh-pagesブランチへpush）
-npm run deploy
+# デプロイ: GitHubにpushすると自動的にVercelがビルド・デプロイ
+git push origin main
 ```
 
 ## Architecture
@@ -78,10 +78,10 @@ localStorage に以下のキーで保存:
 ### Vite Config (vite.config.ts)
 
 ```typescript
-base: '/vlingual-cards/' // GitHub Pages用のベースパス
+base: '/' // Vercel用のベースパス（ルート配置）
 ```
 
-**重要**: リポジトリ名が変わる場合、このbaseを変更する必要があります。
+**重要**: Vercelはルートパスにデプロイされるため、`base: '/'` を使用します。GitHub Pagesの場合は `base: '/vlingual-cards/'` が必要でした。
 
 ### CSV Data Source (types.ts)
 
@@ -145,53 +145,69 @@ import { VocabCard, SAMPLE_DATA } from './types';
 ## PWA Configuration
 
 `public/manifest.json`:
-- `start_url: "/vlingual-cards/"` - GitHub Pagesのベースパスと一致
+- `start_url: "/"` - Vercel用のルートパス
 - `display: "standalone"` - アプリモード
-- アイコンは未実装（Phase 2予定）
+- アイコン実装済み（SVG形式、192x192 / 512x512）
+
+**PWA Features**:
+- ヘルプモーダル（「?」ボタンで使い方を表示）
+- インストール促進バナー（初回アクセス時、3秒後に表示）
+- ホーム画面追加でネイティブアプリのような体験
 
 ## Deployment
 
 ### Live Demo
 
-🌐 **https://w-udagawa.github.io/vlingual-cards/**
+🌐 **https://vlingual-cards.vercel.app**
 
-### GitHub Pages Setup
+### Vercel Setup
 
 #### 初回デプロイ
 
-1. GitHubリポジトリ作成（https://github.com/w-udagawa/vlingual-cards）
-2. ローカルからpush:
-   ```bash
-   git init
-   git add .
-   git commit -m "Initial commit"
-   git remote add origin https://github.com/w-udagawa/vlingual-cards.git
-   git branch -M main
-   git push -u origin main
-   ```
-3. デプロイ実行:
-   ```bash
-   npm run deploy
-   ```
-4. GitHub Settings > Pages > Source: **gh-pages branch** / **/ (root)** を選択
-5. 数分後に公開
+1. **Vercelアカウント作成**: https://vercel.com/signup
+2. **GitHubリポジトリと連携**:
+   - Vercel ダッシュボードで「New Project」をクリック
+   - GitHubリポジトリ `w-udagawa/vlingual-cards` を選択
+   - **Framework Preset**: Vite が自動検出される
+   - **Build Command**: `npm run build` （自動設定）
+   - **Output Directory**: `dist` （自動設定）
+   - 「Deploy」をクリック
+
+3. **デプロイ完了**:
+   - 数分後に `https://vlingual-cards.vercel.app` で公開されます
+   - 以降、`main` ブランチへのpush時に自動デプロイ
 
 #### 2回目以降
 
-```bash
-npm run deploy
-```
-
-### Deploy Command Details
+GitHubにpushするだけ：
 
 ```bash
-npm run deploy
-# = npm run build && gh-pages -d dist
+git add .
+git commit -m "Update: 機能追加"
+git push origin main
 ```
 
-1. `tsc -b`: TypeScriptコンパイル
-2. `vite build`: 本番ビルド（dist/に出力）
-3. `gh-pages -d dist`: dist/を gh-pages ブランチにpush
+Vercelが自動的にビルド・デプロイを実行します（所要時間: 1〜2分）。
+
+### Deploy Workflow
+
+```
+git push origin main
+  ↓
+Vercel が自動検知
+  ↓
+npm run build を実行（Vercelサーバー上）
+  ↓
+dist/ を本番環境にデプロイ
+  ↓
+https://vlingual-cards.vercel.app に反映
+```
+
+**自動デプロイの利点**:
+- GitHub Pagesの5分 → Vercelの1〜2分
+- プレビューデプロイ（PRごとに専用URL生成）
+- ビルドログの詳細表示
+- ロールバックが簡単（ダッシュボードから1クリック）
 
 ## Debugging
 
@@ -387,23 +403,23 @@ word2,訳2,中級,動詞,"Example 2",https://youtu.be/VIDEO_ID_1
 
 ## Future Enhancements (Not Implemented)
 
-**Phase 2 (PWA化)**:
-- Service Worker（オフライン対応）
-- アイコン画像（192px, 512px）
+**Phase 2 (PWA完全対応)**:
+- Service Worker（オフライン対応、キャッシング）
 
 **Phase 3 (拡張機能)**:
-- 統計ダッシュボード
-- エクスポート機能
-- 動画タイトルの手動編集機能
+- 統計ダッシュボード（学習進捗のグラフ化）
+- エクスポート機能（CSV/JSON形式で進捗データ出力）
+- 動画タイトルの手動編集機能（ギャラリー画面で直接編集）
 
 ---
 
-**Version**: 1.2.0
+**Version**: 1.3.0
 **Last Updated**: 2025-10-22
 **Changes**:
-- 複数動画対応（ギャラリー形式の動画選択）
-- YouTubeサムネイル表示
-- 動画ごとの進捗管理
-- 構造化ログ実装（vibelogger風）
-- 7列CSV形式対応（動画タイトル列追加、6列も後方互換）
-- HOW_TO_USE.md（日本語使い方ガイド）追加
+- Vercelへの移行（GitHub Pagesから）
+- アプリ内「使い方」ヘルプモーダル追加（「?」ボタン）
+- PWAアイコン実装（SVG形式、192x192 / 512x512）
+- PWAインストール促進バナー追加（初回アクセス時、3秒後に表示）
+- DISTRIBUTION.md（視聴者向け配布案内）追加
+- 自動デプロイ設定（GitHub push時にVercelが自動ビルド・デプロイ）
+- base path変更（`/vlingual-cards/` → `/`）

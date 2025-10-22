@@ -571,3 +571,357 @@
     padding: 4px 8px;
   }
 }
+
+/* ============================================
+   ヘルプモーダルスタイル
+   ============================================ */
+
+.help-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.help-modal-content {
+  background: var(--card-bg);
+  border: 2px solid var(--border);
+  border-radius: 16px;
+  padding: 32px;
+  max-width: 600px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.help-modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 32px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.help-modal-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text);
+}
+
+.help-modal-content h2 {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--primary);
+  margin: 0 0 24px 0;
+  padding-right: 40px;
+}
+
+.help-section {
+  margin-bottom: 24px;
+}
+
+.help-section h3 {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 12px 0;
+}
+
+.help-section p {
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  margin: 0 0 12px 0;
+}
+
+.help-section ol,
+.help-section ul {
+  margin: 0 0 12px 0;
+  padding-left: 24px;
+}
+
+.help-section li {
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.help-section li strong {
+  color: var(--text);
+}
+
+.help-section ul ul {
+  margin-top: 8px;
+  margin-bottom: 0;
+}
+
+.help-modal-button {
+  width: 100%;
+  padding: 14px;
+  background: var(--primary);
+  border: none;
+  border-radius: 12px;
+  color: white;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 16px;
+}
+
+.help-modal-button:hover {
+  background: #9333ea;
+  transform: translateY(-2px);
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 768px) {
+  .help-modal-content {
+    padding: 24px;
+    max-height: 85vh;
+  }
+
+  .help-modal-content h2 {
+    font-size: 24px;
+    margin-bottom: 20px;
+  }
+
+  .help-section h3 {
+    font-size: 18px;
+  }
+
+  .help-section p,
+  .help-section li {
+    font-size: 15px;
+  }
+}
+
+@media (max-width: 480px) {
+  .help-modal-overlay {
+    padding: 12px;
+  }
+
+  .help-modal-content {
+    padding: 20px;
+    max-height: 80vh;
+  }
+
+  .help-modal-content h2 {
+    font-size: 22px;
+    margin-bottom: 16px;
+    padding-right: 36px;
+  }
+
+  .help-modal-close {
+    font-size: 28px;
+    width: 28px;
+    height: 28px;
+    top: 12px;
+    right: 12px;
+  }
+
+  .help-section {
+    margin-bottom: 20px;
+  }
+
+  .help-section h3 {
+    font-size: 17px;
+    margin-bottom: 10px;
+  }
+
+  .help-section p,
+  .help-section li {
+    font-size: 14px;
+  }
+}
+
+/* ============================================
+   PWAインストールバナースタイル
+   ============================================ */
+
+.install-banner {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(135deg, var(--primary) 0%, #8b5cf6 100%);
+  color: white;
+  padding: 20px;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.3);
+  z-index: 900;
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.install-banner-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: white;
+  font-size: 24px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.install-banner-close:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.install-banner-icon {
+  font-size: 48px;
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.install-banner-content h3 {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0 0 4px 0;
+  text-align: center;
+  color: white;
+}
+
+.install-banner-subtitle {
+  font-size: 14px;
+  opacity: 0.9;
+  margin: 0 0 16px 0;
+  text-align: center;
+}
+
+.install-banner-steps {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 16px;
+}
+
+.install-step {
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 8px;
+}
+
+.install-step:last-child {
+  margin-bottom: 0;
+}
+
+.install-step strong {
+  display: inline-block;
+  min-width: 110px;
+  font-weight: 600;
+}
+
+.install-banner-button {
+  width: 100%;
+  padding: 12px;
+  background: white;
+  border: none;
+  border-radius: 8px;
+  color: var(--primary);
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.install-banner-button:hover {
+  background: rgba(255, 255, 255, 0.9);
+  transform: translateY(-2px);
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 768px) {
+  .install-banner {
+    padding: 16px;
+  }
+
+  .install-banner-icon {
+    font-size: 40px;
+    margin-bottom: 8px;
+  }
+
+  .install-banner-content h3 {
+    font-size: 18px;
+  }
+
+  .install-banner-subtitle {
+    font-size: 13px;
+    margin-bottom: 12px;
+  }
+
+  .install-step {
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 480px) {
+  .install-banner {
+    padding: 14px;
+  }
+
+  .install-banner-icon {
+    font-size: 36px;
+  }
+
+  .install-banner-content h3 {
+    font-size: 17px;
+    padding-right: 32px;
+  }
+
+  .install-banner-subtitle {
+    font-size: 12px;
+  }
+
+  .install-banner-steps {
+    padding: 10px;
+  }
+
+  .install-step {
+    font-size: 12px;
+  }
+
+  .install-step strong {
+    min-width: 100px;
+    font-size: 12px;
+  }
+}

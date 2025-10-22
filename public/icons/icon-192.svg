@@ -1,0 +1,22 @@
+<svg width="192" height="192" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg">
+  <!-- グラデーション背景 -->
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#a855f7;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- 背景 -->
+  <rect width="192" height="192" rx="32" fill="url(#grad)"/>
+
+  <!-- カード形状（装飾） -->
+  <rect x="30" y="50" width="60" height="80" rx="8" fill="rgba(255,255,255,0.15)" transform="rotate(-10 60 90)"/>
+  <rect x="102" y="50" width="60" height="80" rx="8" fill="rgba(255,255,255,0.15)" transform="rotate(10 132 90)"/>
+
+  <!-- メインカード -->
+  <rect x="66" y="40" width="60" height="90" rx="8" fill="white"/>
+
+  <!-- VLロゴ -->
+  <text x="96" y="100" font-family="Arial, sans-serif" font-size="36" font-weight="700" fill="#a855f7" text-anchor="middle">VL</text>
+</svg>

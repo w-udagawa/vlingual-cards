@@ -39,6 +39,8 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [todayCount, setTodayCount] = useState(0);
+  const [showHelp, setShowHelp] = useState(false);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
 
   // CSV解析関数
   const parseCSV = (csvText: string): VocabCard[] => {
@@ -383,10 +385,22 @@ function App() {
     setIsFlipped(false);
   };
 
+  // インストールバナーを閉じる
+  const handleDismissInstallBanner = () => {
+    setShowInstallBanner(false);
+    localStorage.setItem('install_banner_dismissed', 'true');
+  };
+
   // 初期化
   useEffect(() => {
     loadProgress();
     loadCSV();
+
+    // PWAインストールバナー表示（初回アクセス時のみ）
+    const installBannerDismissed = localStorage.getItem('install_banner_dismissed');
+    if (!installBannerDismissed) {
+      setTimeout(() => setShowInstallBanner(true), 3000);
+    }
   }, []);
 
   // カードが読み込まれたら最初のカードを選択
@@ -454,6 +468,9 @@ function App() {
                 {audioEnabled ? '🔊' : '🔇'}
               </button>
             )}
+            <button onClick={() => setShowHelp(true)} className="icon-button" title="使い方">
+              ?
+            </button>
           </div>
         </header>
 
@@ -497,6 +514,69 @@ function App() {
             )}
           </div>
         </main>
+
+        {/* ヘルプモーダル */}
+        {showHelp && (
+          <div className="help-modal-overlay" onClick={() => setShowHelp(false)}>
+            <div className="help-modal-content" onClick={(e) => e.stopPropagation()}>
+              <button className="help-modal-close" onClick={() => setShowHelp(false)}>
+                ×
+              </button>
+              <h2>📖 使い方</h2>
+
+              <section className="help-section">
+                <h3>🎯 基本的な使い方</h3>
+                <ol>
+                  <li><strong>動画を選択</strong>: ギャラリーから学習したい動画をタップ</li>
+                  <li><strong>カードをタップ</strong>: 表面（英単語）をタップして裏面（和訳と例文）を確認</li>
+                  <li><strong>3段階で評価</strong>:
+                    <ul>
+                      <li>🔴 <strong>覚えてない</strong>: もっと復習が必要</li>
+                      <li>🟡 <strong>だいたいOK</strong>: ある程度わかった</li>
+                      <li>🟢 <strong>余裕</strong>: 完璧に覚えている</li>
+                    </ul>
+                  </li>
+                </ol>
+              </section>
+
+              <section className="help-section">
+                <h3>🎵 音声読み上げ</h3>
+                <p>ヘッダーの🔊/🔇ボタンで音声読み上げをON/OFFできます。ONにすると、カードをめくった時に英単語が読み上げられます。</p>
+              </section>
+
+              <section className="help-section">
+                <h3>📊 スマートスケジューリング</h3>
+                <p>学習効率を最大化するため、以下のルールで次のカードが選ばれます：</p>
+                <ul>
+                  <li><strong>未学習カード優先</strong>: まだ見ていないカードがあればランダムに表示</li>
+                  <li><strong>スコア順復習</strong>: 全て学習済みなら、苦手なカードから復習</li>
+                </ul>
+              </section>
+
+              <section className="help-section">
+                <h3>📲 ホーム画面に追加</h3>
+                <p>アプリのように使えます：</p>
+                <ul>
+                  <li><strong>iPhone/iPad</strong>: Safari で共有ボタン → 「ホーム画面に追加」</li>
+                  <li><strong>Android</strong>: Chrome で「ホーム画面に追加」をタップ</li>
+                </ul>
+              </section>
+
+              <section className="help-section">
+                <h3>💡 ヒント</h3>
+                <ul>
+                  <li>動画ごとに進捗が個別に保存されます</li>
+                  <li>「全ての動画」を選ぶと、すべての語彙をまとめて学習できます</li>
+                  <li>進捗をリセットしたい場合は、画面下部の「進捗リセット」ボタンをタップ</li>
+                </ul>
+              </section>
+
+              <button className="help-modal-button" onClick={() => setShowHelp(false)}>
+                閉じる
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -524,6 +604,9 @@ function App() {
               {audioEnabled ? '🔊' : '🔇'}
             </button>
           )}
+          <button onClick={() => setShowHelp(true)} className="icon-button" title="使い方">
+            ?
+          </button>
         </div>
       </header>
 
@@ -607,6 +690,94 @@ function App() {
           進捗リセット
         </button>
       </footer>
+
+      {/* PWAインストールバナー */}
+      {showInstallBanner && (
+        <div className="install-banner">
+          <button className="install-banner-close" onClick={handleDismissInstallBanner}>
+            ×
+          </button>
+          <div className="install-banner-icon">📲</div>
+          <div className="install-banner-content">
+            <h3>ホーム画面に追加できます</h3>
+            <p className="install-banner-subtitle">アプリのように使えます</p>
+            <div className="install-banner-steps">
+              <div className="install-step">
+                <strong>iPhone/iPad:</strong> Safari の共有ボタン → 「ホーム画面に追加」
+              </div>
+              <div className="install-step">
+                <strong>Android:</strong> Chrome のメニュー → 「ホーム画面に追加」
+              </div>
+            </div>
+            <button className="install-banner-button" onClick={handleDismissInstallBanner}>
+              後で
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ヘルプモーダル */}
+      {showHelp && (
+        <div className="help-modal-overlay" onClick={() => setShowHelp(false)}>
+          <div className="help-modal-content" onClick={(e) => e.stopPropagation()}>
+            <button className="help-modal-close" onClick={() => setShowHelp(false)}>
+              ×
+            </button>
+            <h2>📖 使い方</h2>
+
+            <section className="help-section">
+              <h3>🎯 基本的な使い方</h3>
+              <ol>
+                <li><strong>動画を選択</strong>: ギャラリーから学習したい動画をタップ</li>
+                <li><strong>カードをタップ</strong>: 表面（英単語）をタップして裏面（和訳と例文）を確認</li>
+                <li><strong>3段階で評価</strong>:
+                  <ul>
+                    <li>🔴 <strong>覚えてない</strong>: もっと復習が必要</li>
+                    <li>🟡 <strong>だいたいOK</strong>: ある程度わかった</li>
+                    <li>🟢 <strong>余裕</strong>: 完璧に覚えている</li>
+                  </ul>
+                </li>
+              </ol>
+            </section>
+
+            <section className="help-section">
+              <h3>🎵 音声読み上げ</h3>
+              <p>ヘッダーの🔊/🔇ボタンで音声読み上げをON/OFFできます。ONにすると、カードをめくった時に英単語が読み上げられます。</p>
+            </section>
+
+            <section className="help-section">
+              <h3>📊 スマートスケジューリング</h3>
+              <p>学習効率を最大化するため、以下のルールで次のカードが選ばれます：</p>
+              <ul>
+                <li><strong>未学習カード優先</strong>: まだ見ていないカードがあればランダムに表示</li>
+                <li><strong>スコア順復習</strong>: 全て学習済みなら、苦手なカードから復習</li>
+              </ul>
+            </section>
+
+            <section className="help-section">
+              <h3>📲 ホーム画面に追加</h3>
+              <p>アプリのように使えます：</p>
+              <ul>
+                <li><strong>iPhone/iPad</strong>: Safari で共有ボタン → 「ホーム画面に追加」</li>
+                <li><strong>Android</strong>: Chrome で「ホーム画面に追加」をタップ</li>
+              </ul>
+            </section>
+
+            <section className="help-section">
+              <h3>💡 ヒント</h3>
+              <ul>
+                <li>動画ごとに進捗が個別に保存されます</li>
+                <li>「全ての動画」を選ぶと、すべての語彙をまとめて学習できます</li>
+                <li>進捗をリセットしたい場合は、画面下部の「進捗リセット」ボタンをタップ</li>
+              </ul>
+            </section>
+
+            <button className="help-modal-button" onClick={() => setShowHelp(false)}>
+              閉じる
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
