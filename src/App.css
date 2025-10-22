@@ -244,6 +244,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
+  padding: 0 16px;
+  line-height: 1.2;
 }
 
 .card-hint {
