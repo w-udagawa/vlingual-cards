@@ -114,10 +114,9 @@ export const SAMPLE_DATA: VocabCard[] = [
   }
 ];
 
-// デフォルトのCSV URL（GitHub Raw）
-// GitHub上でCSVを直接編集すれば即反映、再デプロイ不要
-// 開発中: ローカルファイルを使用（本番はGitHub Raw URL）
-export const DEFAULT_CSV_URL = "/vlingual-cards/vocab.csv";
+// デフォルトのCSV URL
+// Vercelの public/ ディレクトリからCSVを読み込み
+export const DEFAULT_CSV_URL = "/vocab.csv";
 
 // localStorage キー
 export const PROGRESS_STORAGE_KEY = "vocab_progress";
