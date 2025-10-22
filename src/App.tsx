@@ -531,7 +531,7 @@ function App() {
         {/* ヘッダー */}
         <header className="header">
           <div className="header-left">
-            <div className="logo">VL</div>
+            <img src="/channel-logo.jpg" alt="Vlingual Channel" className="logo" />
             <h1 className="app-name">Vlingual Cards</h1>
           </div>
           <div className="header-right">
@@ -685,7 +685,7 @@ function App() {
               ←
             </button>
           )}
-          <div className="logo">VL</div>
+          <img src="/channel-logo.jpg" alt="Vlingual Channel" className="logo" />
           <h1 className="app-name">
             {selectedVideo ? selectedVideo.title : 'Vlingual Cards'}
           </h1>
