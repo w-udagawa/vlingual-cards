@@ -53,7 +53,7 @@ npm install
 npm run dev
 ```
 
-開発サーバーが起動したら、ブラウザで http://localhost:5173 にアクセスしてください。
+開発サーバーが起動したら、ブラウザで http://localhost:5173/vlingual-cards/ にアクセスしてください。
 
 ### ビルド
 
@@ -135,8 +135,8 @@ npm run deploy
 語彙データは以下の形式のCSVファイルで管理します：
 
 ```csv
-単語,和訳,難易度,品詞,文脈,動画URL
-accomplish,達成する,中級,動詞,"I want to accomplish my goals this year. (今年は目標を達成したい)",https://youtube.com/@VlingualChannel
+単語,和訳,難易度,品詞,文脈,動画URL,動画タイトル
+accomplish,達成する,中級,動詞,"I want to accomplish my goals this year. (今年は目標を達成したい)",https://youtu.be/abc123,英語学習動画
 ```
 
 ### 列の説明
@@ -148,7 +148,10 @@ accomplish,達成する,中級,動詞,"I want to accomplish my goals this year. 
 | 難易度 | 初級/中級/上級 | ✅ | 中級 |
 | 品詞 | 動詞/形容詞/名詞など | ✅ | 動詞 |
 | 文脈 | 例文（英語＋日本語） | ✅ | I want to accomplish my goals this year. (今年は目標を達成したい) |
-| 動画URL | 関連動画へのリンク | ✅ | https://youtube.com/@VlingualChannel |
+| 動画URL | 関連動画へのリンク | ✅ | https://youtu.be/abc123 |
+| 動画タイトル | 動画のタイトル | ⭕ | 英語学習動画 |
+
+**注意**: 動画タイトル列は省略可能です（6列形式も対応）。省略した場合は「動画1」「動画2」のように自動命名されます。
 
 ### CSV更新方法（GitHub連携）
 
@@ -298,9 +301,11 @@ Vlingual Channelの視聴者の皆様の学習をサポートできれば幸い�
 ---
 
 **バージョン**: 1.2.0
-**最終更新**: 2025-10-21
+**最終更新**: 2025-10-22
 **更新内容**:
 - 複数動画対応（ギャラリー形式の動画選択画面）
 - YouTubeサムネイル表示
 - 動画ごとの進捗管理
+- 構造化ログ実装（デバッグ用）
+- 7列CSV形式対応（動画タイトル列追加）
 - HOW_TO_USE.md（日本語使い方ガイド）追加

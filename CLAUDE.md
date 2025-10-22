@@ -95,16 +95,17 @@ DEFAULT_CSV_URL = "https://raw.githubusercontent.com/w-udagawa/vlingual-cards/ma
 1. GitHub Web UI で `public/vocab.csv` を編集
 2. コミット → 即座にアプリに反映（**再デプロイ不要**）
 
-CSV形式:
+CSV形式（7列または6列）:
 ```
-単語,和訳,難易度,品詞,文脈,動画URL
-accomplish,達成する,中級,動詞,"例文 (日本語訳)",https://youtube.com/@VlingualChannel
+単語,和訳,難易度,品詞,文脈,動画URL,動画タイトル
+accomplish,達成する,中級,動詞,"例文 (日本語訳)",https://youtu.be/abc123,英語学習動画
 ```
 
 **必須ルール**:
 - 難易度: 必ず `初級` / `中級` / `上級` のいずれか
 - 文脈にカンマや改行がある場合はダブルクォートで囲む
 - エスケープされたクォート（`""`）に対応
+- 動画タイトル列は省略可能（6列形式も対応）
 
 ### Node.js Version Compatibility
 
@@ -306,7 +307,7 @@ const groupCardsByVideo = (cards: VocabCard[]): VideoGroup[] => {
     if (!grouped.has(videoId)) {
       grouped.set(videoId, {
         id: videoId,
-        title: `動画${grouped.size + 1}`,
+        title: card.動画タイトル || `動画${grouped.size + 1}`,  // CSVからタイトル取得、なければフォールバック
         url: card.動画URL,
         thumbnailUrl: getThumbnailUrl(videoId),
         cards: [],
@@ -367,23 +368,22 @@ const groupCardsByVideo = (cards: VocabCard[]): VideoGroup[] => {
 
 ### CSV Format Requirements
 
-**Single Video** (current):
+**7列形式（推奨）**:
+```csv
+単語,和訳,難易度,品詞,文脈,動画URL,動画タイトル
+word1,訳1,初級,名詞,"Example 1",https://youtu.be/VIDEO_ID_1,動画タイトル1
+word2,訳2,中級,動詞,"Example 2",https://youtu.be/VIDEO_ID_1,動画タイトル1
+word3,訳3,上級,形容詞,"Example 3",https://youtu.be/VIDEO_ID_2,動画タイトル2
+```
+
+**6列形式（後方互換）**:
 ```csv
 単語,和訳,難易度,品詞,文脈,動画URL
 word1,訳1,初級,名詞,"Example 1",https://youtu.be/VIDEO_ID_1
 word2,訳2,中級,動詞,"Example 2",https://youtu.be/VIDEO_ID_1
 ```
 
-**Multiple Videos** (future):
-```csv
-単語,和訳,難易度,品詞,文脈,動画URL
-word1,訳1,初級,名詞,"Example 1",https://youtu.be/VIDEO_ID_1
-word2,訳2,中級,動詞,"Example 2",https://youtu.be/VIDEO_ID_1
-word3,訳3,上級,形容詞,"Example 3",https://youtu.be/VIDEO_ID_2
-word4,訳4,初級,名詞,"Example 4",https://youtu.be/VIDEO_ID_2
-```
-
-**Grouping**: All cards with the same `動画URL` are grouped together.
+**Grouping**: All cards with the same `動画URL` are grouped together. Video titles are read from CSV (7-column format) or auto-generated (6-column format).
 
 ## Future Enhancements (Not Implemented)
 
@@ -399,9 +399,11 @@ word4,訳4,初級,名詞,"Example 4",https://youtu.be/VIDEO_ID_2
 ---
 
 **Version**: 1.2.0
-**Last Updated**: 2025-10-21
+**Last Updated**: 2025-10-22
 **Changes**:
 - 複数動画対応（ギャラリー形式の動画選択）
 - YouTubeサムネイル表示
 - 動画ごとの進捗管理
+- 構造化ログ実装（vibelogger風）
+- 7列CSV形式対応（動画タイトル列追加、6列も後方互換）
 - HOW_TO_USE.md（日本語使い方ガイド）追加
