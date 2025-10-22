@@ -85,15 +85,16 @@ base: '/' // Vercel用のベースパス（ルート配置）
 
 ### CSV Data Source (types.ts)
 
-**GitHub連携**: アプリは GitHub Raw から直接CSVを読み込みます。
+**Vercel連携**: アプリは Vercel の `/vocab.csv` からCSVを読み込みます。
 
 ```typescript
-DEFAULT_CSV_URL = "https://raw.githubusercontent.com/w-udagawa/vlingual-cards/main/public/vocab.csv"
+DEFAULT_CSV_URL = "/vocab.csv"
 ```
 
 **CSV更新ワークフロー**:
 1. GitHub Web UI で `public/vocab.csv` を編集
-2. コミット → 即座にアプリに反映（**再デプロイ不要**）
+2. コミット → GitHubにpush
+3. Vercel が自動的にビルド・デプロイ（**1〜2分で反映**）
 
 CSV形式（7列または6列）:
 ```

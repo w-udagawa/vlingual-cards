@@ -73,9 +73,8 @@ PWA（Progressive Web App）として実装されているため、一度アク�
 
 ## 📝 語彙データの更新
 
-語彙データは GitHub 上の CSV ファイルから直接読み込まれます：
-- CSV更新 → 即座にアプリに反映
-- 再デプロイ不要
+語彙データは Vercel の `/vocab.csv` から読み込まれます：
+- GitHub で CSV更新 → Vercel が自動デプロイ（1〜2分）→ アプリに反映
 - [vocab.csv](https://github.com/w-udagawa/vlingual-cards/blob/main/public/vocab.csv) で最新データを確認できます
 
 ## 🛠️ 技術スタック

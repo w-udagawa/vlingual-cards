@@ -121,9 +121,9 @@ accomplish,達成する,中級,動詞,"I want to accomplish my goals this year. 
 
 **注意**: 動画タイトル列は省略可能です（6列形式も対応）。省略した場合は「動画1」「動画2」のように自動命名されます。
 
-### CSV更新方法（GitHub連携）
+### CSV更新方法（GitHub連携 + Vercel自動デプロイ）
 
-**重要**: アプリは`https://raw.githubusercontent.com/w-udagawa/vlingual-cards/main/public/vocab.csv`から直接読み込みます。
+**重要**: アプリは Vercel の `/vocab.csv` からCSVを読み込みます。GitHub でCSVを更新すると、Vercel が自動的にビルド・デプロイします。
 
 #### オンライン編集（推奨）
 1. GitHubリポジトリ: https://github.com/w-udagawa/vlingual-cards
@@ -131,13 +131,13 @@ accomplish,達成する,中級,動詞,"I want to accomplish my goals this year. 
 3. 鉛筆アイコン（Edit）をクリック
 4. データを編集
 5. "Commit changes"をクリック
-6. **即座にアプリに反映**（再デプロイ不要）
+6. **Vercel が自動的にデプロイ**（1〜2分で反映）
 
 #### ローカル編集
 1. `public/vocab.csv`を編集
 2. `git add public/vocab.csv && git commit -m "Update vocabulary"`
 3. `git push origin main`
-4. 自動で反映（再デプロイ不要）
+4. **Vercel が自動的にデプロイ**（1〜2分で反映）
 
 #### 注意
 - CSVフォーマットを厳守（特に難易度は`初級`/`中級`/`上級`のみ）
