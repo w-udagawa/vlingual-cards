@@ -133,6 +133,9 @@
   font-size: 18px;
   font-weight: 700;
   margin: 0;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  max-width: 300px;
 }
 
 .header-right {
@@ -153,6 +156,40 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.filter-button {
+  background: var(--card-bg);
+  color: var(--text-primary);
+  border: 2px solid var(--border);
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.filter-button:hover {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+  transform: translateY(-1px);
+}
+
+.filter-button.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+  box-shadow: 0 2px 8px rgba(168, 85, 247, 0.3);
+}
+
+.filter-button.active:hover {
+  background: #9333ea;
+  border-color: #9333ea;
 }
 
 /* カードコンテナ */
@@ -248,7 +285,8 @@
   overflow-wrap: break-word;
   hyphens: auto;
   padding: 0 16px;
-  line-height: 1.2;
+  line-height: 1.4;
+  max-width: 100%;
 }
 
 .card-hint {
@@ -263,6 +301,9 @@
   font-weight: 600;
   text-align: center;
   color: var(--primary);
+  word-break: break-word;
+  overflow-wrap: break-word;
+  line-height: 1.3;
 }
 
 .card-context {
@@ -378,11 +419,11 @@
   }
 
   .card-word {
-    font-size: 36px;
+    font-size: 32px;
   }
 
   .card-translation {
-    font-size: 24px;
+    font-size: 20px;
   }
 
   .card-context {
@@ -412,7 +453,7 @@
   }
 
   .card-translation {
-    font-size: 20px;
+    font-size: 18px;
   }
 }
 
@@ -474,6 +515,9 @@
   font-weight: 600;
   color: var(--text);
   margin: 0 0 8px 0;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  line-height: 1.4;
 }
 
 .video-word-count {

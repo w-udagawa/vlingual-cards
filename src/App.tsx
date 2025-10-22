@@ -41,6 +41,7 @@ function App() {
   const [todayCount, setTodayCount] = useState(0);
   const [showHelp, setShowHelp] = useState(false);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [filterMode, setFilterMode] = useState<'all' | 'again'>('all');
 
   // CSV解析関数
   const parseCSV = (csvText: string): VocabCard[] => {
@@ -228,13 +229,29 @@ function App() {
     }
   };
 
-  // 進捗を保存
+  // 進捗を保存（動画別対応）
   const saveProgress = (newProgress: ProgressData) => {
-    localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(newProgress));
+    // 動画別の進捗キーを使用（選択されている場合）
+    const storageKey = selectedVideo
+      ? `vocab_progress_${selectedVideo.id}`
+      : PROGRESS_STORAGE_KEY;
+    localStorage.setItem(storageKey, JSON.stringify(newProgress));
     setProgress(newProgress);
   };
 
-  // スマートスケジューリング
+  // カードフィルター関数
+  const getFilteredCards = (allCards: VocabCard[]): VocabCard[] => {
+    if (filterMode === 'all') {
+      return allCards;
+    }
+    // 'again'モード: again > 0 のカードのみ
+    return allCards.filter(card => {
+      const p = progress[card.単語];
+      return p && p.again > 0;
+    });
+  };
+
+  // スマートスケジューリング（改善版）
   const selectNextCard = (allCards: VocabCard[], currentProgress: ProgressData): VocabCard => {
     // 1. 未学習カード（seen === 0）があればランダム選択
     const unseenCards = allCards.filter(card => {
@@ -254,17 +271,44 @@ function App() {
       return selected;
     }
 
-    // 2. 全て学習済みの場合、スコア降順ソート
+    // 2. 全て学習済みの場合、スコアベースの重み付きランダム選択
     const score = (word: string) => {
       const p = currentProgress[word] || { seen: 0, again: 0, ok: 0, easy: 0 };
-      return p.seen * 1 + p.again * 3 - p.easy;
+      return Math.max(1, p.seen * 1 + p.again * 3 - p.easy); // 最小1
     };
 
+    // スコア上位10枚からランダム選択（カード数が少ない場合は全体から）
     const sortedCards = [...allCards].sort((a, b) => score(b.単語) - score(a.単語));
-    const selected = sortedCards[0];
+    const topN = Math.min(10, sortedCards.length);
+    const candidateCards = sortedCards.slice(0, topN);
+
+    // 重み付きランダム選択
+    const weights = candidateCards.map(card => score(card.単語));
+    const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+    const random = Math.random() * totalWeight;
+
+    let cumulative = 0;
+    for (let i = 0; i < candidateCards.length; i++) {
+      cumulative += weights[i];
+      if (random <= cumulative) {
+        const selected = candidateCards[i];
+        console.log('[CARD_SELECT]', {
+          operation: 'selectNextCard',
+          strategy: 'weighted_random',
+          word: selected.単語,
+          score: score(selected.単語),
+          topN,
+          timestamp: new Date().toISOString()
+        });
+        return selected;
+      }
+    }
+
+    // フォールバック（数値誤差対策）
+    const selected = candidateCards[0];
     console.log('[CARD_SELECT]', {
       operation: 'selectNextCard',
-      strategy: 'score',
+      strategy: 'fallback',
       word: selected.単語,
       score: score(selected.単語),
       timestamp: new Date().toISOString()
@@ -301,10 +345,18 @@ function App() {
     saveProgress(newProgress);
     setTodayCount(prev => prev + 1);
 
-    // 次のカードへ（フリップせずに即座に遷移）
+    // 次のカードへ（フリップせずに即座に遷移、フィルター適用）
     setIsFlipped(false);
-    const nextCard = selectNextCard(cards, newProgress);
-    setCurrentCard(nextCard);
+    const filteredCards = getFilteredCards(cards);
+    if (filteredCards.length > 0) {
+      const nextCard = selectNextCard(filteredCards, newProgress);
+      setCurrentCard(nextCard);
+    } else {
+      // フィルター結果が0件になった場合、フィルターを解除して続行
+      setFilterMode('all');
+      const nextCard = selectNextCard(cards, newProgress);
+      setCurrentCard(nextCard);
+    }
   };
 
   // 音声読み上げ
@@ -333,12 +385,28 @@ function App() {
     localStorage.setItem(AUDIO_ENABLED_KEY, String(newValue));
   };
 
-  // 進捗リセット
+  // 進捗リセット（動画別対応）
   const handleReset = () => {
-    if (confirm('進捗をリセットしてもよろしいですか？')) {
-      localStorage.removeItem(PROGRESS_STORAGE_KEY);
+    const message = selectedVideo
+      ? `「${selectedVideo.title}」の進捗をリセットしてもよろしいですか？`
+      : '全ての動画の進捗をリセットしてもよろしいですか？';
+
+    if (confirm(message)) {
+      if (selectedVideo) {
+        // 選択中の動画のみリセット
+        localStorage.removeItem(`vocab_progress_${selectedVideo.id}`);
+      } else {
+        // 全ての進捗をリセット（グローバルキーと全動画別キー）
+        localStorage.removeItem(PROGRESS_STORAGE_KEY);
+        allVideos.forEach(video => {
+          localStorage.removeItem(`vocab_progress_${video.id}`);
+        });
+      }
+
       setProgress({});
       setTodayCount(0);
+      setFilterMode('all'); // フィルターもリセット
+
       if (cards.length > 0) {
         setCurrentCard(selectNextCard(cards, {}));
       }
@@ -403,12 +471,16 @@ function App() {
     }
   }, []);
 
-  // カードが読み込まれたら最初のカードを選択
+  // カードが読み込まれたら最初のカードを選択（フィルター対応）
   useEffect(() => {
-    if (cards.length > 0 && !currentCard) {
-      setCurrentCard(selectNextCard(cards, progress));
+    const filteredCards = getFilteredCards(cards);
+    if (filteredCards.length > 0 && !currentCard) {
+      setCurrentCard(selectNextCard(filteredCards, progress));
+    } else if (filteredCards.length === 0 && cards.length > 0) {
+      // フィルター結果が0件の場合、フィルターを解除
+      setFilterMode('all');
     }
-  }, [cards, currentCard, progress]);
+  }, [cards, currentCard, progress, filterMode]);
 
   // 難易度に応じた色を取得
   const getLevelColor = (level: string): string => {
@@ -545,11 +617,41 @@ function App() {
               </section>
 
               <section className="help-section">
+                <h3>🔍 フィルター機能</h3>
+                <p>ヘッダーのフィルターボタンで表示を切り替えられます：</p>
+                <ul>
+                  <li><strong>📚 全て</strong>: 全ての単語を学習</li>
+                  <li><strong>🔴 覚えてない</strong>: 「覚えてない」と評価した単語のみ集中復習</li>
+                </ul>
+              </section>
+
+              <section className="help-section">
                 <h3>📊 スマートスケジューリング</h3>
                 <p>学習効率を最大化するため、以下のルールで次のカードが選ばれます：</p>
                 <ul>
                   <li><strong>未学習カード優先</strong>: まだ見ていないカードがあればランダムに表示</li>
-                  <li><strong>スコア順復習</strong>: 全て学習済みなら、苦手なカードから復習</li>
+                  <li><strong>重み付き復習</strong>: 全て学習済みなら、苦手なカード（「覚えてない」が多い）ほど出やすくなります</li>
+                </ul>
+              </section>
+
+              <section className="help-section">
+                <h3>💾 学習記録について</h3>
+                <p><strong>記録はブラウザに保存されます</strong>：</p>
+                <ul>
+                  <li>✅ ブラウザを閉じても記録は保持されます</li>
+                  <li>✅ 数日後・数週間後も記録は残ります</li>
+                  <li>⚠️ ブラウザのキャッシュクリアで消えます</li>
+                  <li>⚠️ 異なるブラウザ・デバイスでは記録は共有されません</li>
+                  <li>📱 同じブラウザを使い続ける限り、記録は永続的に保持されます</li>
+                </ul>
+              </section>
+
+              <section className="help-section">
+                <h3>🔄 進捗リセット</h3>
+                <p>画面下部の「進捗リセット」ボタンで学習記録をリセットできます：</p>
+                <ul>
+                  <li><strong>動画選択時</strong>: その動画の進捗のみリセット</li>
+                  <li><strong>「全ての動画」選択時</strong>: 全動画の進捗をリセット</li>
                 </ul>
               </section>
 
@@ -559,15 +661,6 @@ function App() {
                 <ul>
                   <li><strong>iPhone/iPad</strong>: Safari で共有ボタン → 「ホーム画面に追加」</li>
                   <li><strong>Android</strong>: Chrome で「ホーム画面に追加」をタップ</li>
-                </ul>
-              </section>
-
-              <section className="help-section">
-                <h3>💡 ヒント</h3>
-                <ul>
-                  <li>動画ごとに進捗が個別に保存されます</li>
-                  <li>「全ての動画」を選ぶと、すべての語彙をまとめて学習できます</li>
-                  <li>進捗をリセットしたい場合は、画面下部の「進捗リセット」ボタンをタップ</li>
                 </ul>
               </section>
 
@@ -599,6 +692,13 @@ function App() {
         </div>
         <div className="header-right">
           <span className="today-count">{todayCount}枚</span>
+          <button
+            onClick={() => setFilterMode(prev => prev === 'all' ? 'again' : 'all')}
+            className={`filter-button ${filterMode === 'again' ? 'active' : ''}`}
+            title={filterMode === 'all' ? '覚えてない単語のみ表示' : '全ての単語を表示'}
+          >
+            {filterMode === 'all' ? '📚 全て' : '🔴 覚えてない'}
+          </button>
           {'speechSynthesis' in window && (
             <button onClick={toggleAudio} className="icon-button" title="音声読み上げ">
               {audioEnabled ? '🔊' : '🔇'}
@@ -746,11 +846,41 @@ function App() {
             </section>
 
             <section className="help-section">
+              <h3>🔍 フィルター機能</h3>
+              <p>ヘッダーのフィルターボタンで表示を切り替えられます：</p>
+              <ul>
+                <li><strong>📚 全て</strong>: 全ての単語を学習</li>
+                <li><strong>🔴 覚えてない</strong>: 「覚えてない」と評価した単語のみ集中復習</li>
+              </ul>
+            </section>
+
+            <section className="help-section">
               <h3>📊 スマートスケジューリング</h3>
               <p>学習効率を最大化するため、以下のルールで次のカードが選ばれます：</p>
               <ul>
                 <li><strong>未学習カード優先</strong>: まだ見ていないカードがあればランダムに表示</li>
-                <li><strong>スコア順復習</strong>: 全て学習済みなら、苦手なカードから復習</li>
+                <li><strong>重み付き復習</strong>: 全て学習済みなら、苦手なカード（「覚えてない」が多い）ほど出やすくなります</li>
+              </ul>
+            </section>
+
+            <section className="help-section">
+              <h3>💾 学習記録について</h3>
+              <p><strong>記録はブラウザに保存されます</strong>：</p>
+              <ul>
+                <li>✅ ブラウザを閉じても記録は保持されます</li>
+                <li>✅ 数日後・数週間後も記録は残ります</li>
+                <li>⚠️ ブラウザのキャッシュクリアで消えます</li>
+                <li>⚠️ 異なるブラウザ・デバイスでは記録は共有されません</li>
+                <li>📱 同じブラウザを使い続ける限り、記録は永続的に保持されます</li>
+              </ul>
+            </section>
+
+            <section className="help-section">
+              <h3>🔄 進捗リセット</h3>
+              <p>画面下部の「進捗リセット」ボタンで学習記録をリセットできます：</p>
+              <ul>
+                <li><strong>動画選択時</strong>: その動画の進捗のみリセット</li>
+                <li><strong>「全ての動画」選択時</strong>: 全動画の進捗をリセット</li>
               </ul>
             </section>
 
@@ -760,15 +890,6 @@ function App() {
               <ul>
                 <li><strong>iPhone/iPad</strong>: Safari で共有ボタン → 「ホーム画面に追加」</li>
                 <li><strong>Android</strong>: Chrome で「ホーム画面に追加」をタップ</li>
-              </ul>
-            </section>
-
-            <section className="help-section">
-              <h3>💡 ヒント</h3>
-              <ul>
-                <li>動画ごとに進捗が個別に保存されます</li>
-                <li>「全ての動画」を選ぶと、すべての語彙をまとめて学習できます</li>
-                <li>進捗をリセットしたい場合は、画面下部の「進捗リセット」ボタンをタップ</li>
               </ul>
             </section>
 
