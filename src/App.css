@@ -410,3 +410,164 @@
     font-size: 20px;
   }
 }
+
+/* ============================================
+   ギャラリー画面スタイル
+   ============================================ */
+
+.gallery-container {
+  padding: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.gallery-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text);
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.video-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+  justify-items: center;
+}
+
+.video-card {
+  background: var(--card-bg);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  width: 100%;
+  max-width: 320px;
+}
+
+.video-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--primary);
+  box-shadow: 0 8px 16px rgba(168, 85, 247, 0.2);
+}
+
+.video-thumbnail {
+  width: 100%;
+  height: 180px;
+  object-fit: cover;
+  display: block;
+}
+
+.video-info {
+  padding: 16px;
+}
+
+.video-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 8px 0;
+}
+
+.video-word-count {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+/* 全ての動画カード */
+.video-card-all {
+  background: linear-gradient(135deg, var(--primary) 0%, #8b5cf6 100%);
+  border-color: var(--primary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 256px;
+}
+
+.video-card-all:hover {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 12px 24px rgba(168, 85, 247, 0.4);
+}
+
+.all-videos-icon {
+  font-size: 64px;
+  margin-bottom: 8px;
+}
+
+.video-card-all .video-title {
+  color: white;
+  font-size: 20px;
+}
+
+.video-card-all .video-word-count {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.all-videos-subtitle {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+  margin: 4px 0 0 0;
+}
+
+/* 戻るボタン */
+.back-button {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-size: 24px;
+  cursor: pointer;
+  padding: 4px 12px;
+  margin-right: 8px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.back-button:hover {
+  background: rgba(168, 85, 247, 0.1);
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 768px) {
+  .gallery-container {
+    padding: 16px;
+  }
+
+  .gallery-title {
+    font-size: 20px;
+    margin-bottom: 24px;
+  }
+
+  .video-grid {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .gallery-container {
+    padding: 12px;
+  }
+
+  .gallery-title {
+    font-size: 18px;
+    margin-bottom: 20px;
+  }
+
+  .video-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .video-card {
+    max-width: 100%;
+  }
+
+  .back-button {
+    font-size: 20px;
+    padding: 4px 8px;
+  }
+}

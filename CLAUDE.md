@@ -261,6 +261,130 @@ You are using Node.js 18.19.1. Vite requires Node.js version 20.19+ or 22.12+.
 - これは警告のみで、Vite 5.4.21 はNode.js 18で正常動作します
 - ビルドが成功していれば問題なし
 
+## Multi-Video Support (v1.2.0)
+
+### Architecture Overview
+
+**Dual-Screen Design**:
+- **Gallery Screen**: Video selection with YouTube thumbnails
+- **Study Screen**: Flashcard learning interface
+
+**Key Components**:
+```typescript
+// src/types.ts - Line 23-30
+export interface VideoGroup {
+  id: string;              // YouTube video ID (extracted from URL)
+  title: string;           // Video title (auto-generated: "動画1", "動画2", etc.)
+  url: string;             // Original YouTube URL
+  thumbnailUrl: string;    // YouTube thumbnail (mqdefault.jpg)
+  cards: VocabCard[];      // Vocabulary cards for this video
+  wordCount: number;       // Number of vocabulary items
+}
+```
+
+### YouTube ID Extraction
+
+**Supported URL Formats** (App.tsx:11-22):
+- `https://youtu.be/{VIDEO_ID}`
+- `https://youtube.com/watch?v={VIDEO_ID}`
+- `https://youtube.com/embed/{VIDEO_ID}`
+
+**Thumbnail URL**: `https://img.youtube.com/vi/{VIDEO_ID}/mqdefault.jpg`
+- No API key required
+- Direct CDN access
+
+### Data Grouping Logic (App.tsx:115-143)
+
+```typescript
+const groupCardsByVideo = (cards: VocabCard[]): VideoGroup[] => {
+  const grouped = new Map<string, VideoGroup>();
+
+  cards.forEach(card => {
+    const videoId = extractYouTubeId(card.動画URL);
+    if (!videoId) return; // Skip invalid URLs
+
+    if (!grouped.has(videoId)) {
+      grouped.set(videoId, {
+        id: videoId,
+        title: `動画${grouped.size + 1}`,
+        url: card.動画URL,
+        thumbnailUrl: getThumbnailUrl(videoId),
+        cards: [],
+        wordCount: 0
+      });
+    }
+
+    const group = grouped.get(videoId)!;
+    group.cards.push(card);
+    group.wordCount++;
+  });
+
+  return Array.from(grouped.values());
+};
+```
+
+### State Management
+
+**New State Variables** (App.tsx:30-41):
+- `screen: 'gallery' | 'study'` - Current screen
+- `allVideos: VideoGroup[]` - All video groups
+- `selectedVideo: VideoGroup | null` - Currently selected video
+
+**Navigation Flow**:
+1. Load CSV → Group by video URL → Set `allVideos`
+2. If `allVideos.length > 1` → Show gallery
+3. If `allVideos.length === 1` → Auto-navigate to study
+4. User selects video → Switch to study screen
+5. Back button (visible if multiple videos) → Return to gallery
+
+### Video-Specific Progress Storage
+
+**localStorage Keys**:
+- Global: `vocab_progress` (backward compatibility)
+- Per-video: `vocab_progress_${videoId}`
+
+**Behavior** (App.tsx:329-367):
+- When selecting a video: Load `vocab_progress_${videoId}`
+- When selecting "All Videos": Load global `vocab_progress`
+- Progress isolation: Each video maintains independent learning state
+
+### Gallery UI (App.css:267-416)
+
+**Responsive Grid**:
+- Desktop: `repeat(auto-fill, minmax(280px, 1fr))`
+- Tablet (≤768px): `minmax(240px, 1fr)`
+- Mobile (≤480px): `1fr` (single column)
+
+**Video Card Styles**:
+- Thumbnail: 320×180px (16:9 aspect ratio)
+- Hover effect: `translateY(-4px)` with purple border
+- "All Videos" card: Purple gradient background with 📚 icon
+
+**Back Button** (App.css:392-404):
+- Positioned in header-left
+- Only visible if `allVideos.length > 1`
+- Purple color with hover effect
+
+### CSV Format Requirements
+
+**Single Video** (current):
+```csv
+単語,和訳,難易度,品詞,文脈,動画URL
+word1,訳1,初級,名詞,"Example 1",https://youtu.be/VIDEO_ID_1
+word2,訳2,中級,動詞,"Example 2",https://youtu.be/VIDEO_ID_1
+```
+
+**Multiple Videos** (future):
+```csv
+単語,和訳,難易度,品詞,文脈,動画URL
+word1,訳1,初級,名詞,"Example 1",https://youtu.be/VIDEO_ID_1
+word2,訳2,中級,動詞,"Example 2",https://youtu.be/VIDEO_ID_1
+word3,訳3,上級,形容詞,"Example 3",https://youtu.be/VIDEO_ID_2
+word4,訳4,初級,名詞,"Example 4",https://youtu.be/VIDEO_ID_2
+```
+
+**Grouping**: All cards with the same `動画URL` are grouped together.
+
 ## Future Enhancements (Not Implemented)
 
 **Phase 2 (PWA化)**:
@@ -269,13 +393,15 @@ You are using Node.js 18.19.1. Vite requires Node.js version 20.19+ or 22.12+.
 
 **Phase 3 (拡張機能)**:
 - 統計ダッシュボード
-- 複数CSVの切り替え
 - エクスポート機能
+- 動画タイトルの手動編集機能
 
 ---
 
-**Version**: 1.1.0
+**Version**: 1.2.0
 **Last Updated**: 2025-10-21
 **Changes**:
-- GitHub Raw CSV連携（再デプロイ不要）
-- 構造化ログ追加（デバッグ用）
+- 複数動画対応（ギャラリー形式の動画選択）
+- YouTubeサムネイル表示
+- 動画ごとの進捗管理
+- HOW_TO_USE.md（日本語使い方ガイド）追加

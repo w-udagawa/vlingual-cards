@@ -6,6 +6,7 @@ export interface VocabCard {
   品詞: string;
   文脈: string;
   動画URL: string;
+  動画タイトル?: string;  // オプショナル（CSVにない場合も対応）
 }
 
 // 進捗データの型定義
@@ -18,6 +19,16 @@ export interface Progress {
 
 // 進捗データマップ（単語をキーとする）
 export type ProgressData = Record<string, Progress>;
+
+// 動画グループ（YouTube動画ごと）
+export interface VideoGroup {
+  id: string;              // YouTube動画ID
+  title: string;           // 動画タイトル
+  url: string;             // 元のYouTube URL
+  thumbnailUrl: string;    // サムネイルURL
+  cards: VocabCard[];      // その動画の語彙リスト
+  wordCount: number;       // 語彙数
+}
 
 // サンプルデータ（CSV読み込みエラー時のフォールバック用）
 export const SAMPLE_DATA: VocabCard[] = [
@@ -105,7 +116,8 @@ export const SAMPLE_DATA: VocabCard[] = [
 
 // デフォルトのCSV URL（GitHub Raw）
 // GitHub上でCSVを直接編集すれば即反映、再デプロイ不要
-export const DEFAULT_CSV_URL = "https://raw.githubusercontent.com/w-udagawa/vlingual-cards/main/public/vocab.csv";
+// 開発中: ローカルファイルを使用（本番はGitHub Raw URL）
+export const DEFAULT_CSV_URL = "/vlingual-cards/vocab.csv";
 
 // localStorage キー
 export const PROGRESS_STORAGE_KEY = "vocab_progress";
