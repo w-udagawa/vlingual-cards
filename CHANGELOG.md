@@ -5,6 +5,24 @@ All notable changes to Vlingual Cards will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] - 2025-10-25
+
+### Added
+- **チャンネルロゴ表示**: アプリヘッダーにチャンネルロゴを追加
+  - `public/channel-logo.jpg` を配置
+  - ヘッダーの "VL" テキストロゴを画像に置き換え
+
+### Changed
+- **PWAアイコン**: SVG形式からチャンネルロゴJPG形式に変更
+  - `public/icons/icon-192.jpg` (192×192px)
+  - `public/icons/icon-512.jpg` (512×512px)
+  - ホーム画面に追加時、チャンネルロゴが表示されます
+
+### Technical
+- `public/manifest.json`: icons の type を `image/svg+xml` → `image/jpeg` に変更
+- `src/App.tsx`: `<div className="logo">VL</div>` → `<img src="/channel-logo.jpg">` に変更（2箇所）
+- `src/App.css`: `.logo` スタイルを画像表示用に最適化（`object-fit: contain`, `width: auto`）
+
 ## [1.2.0] - 2025-10-21
 
 ### Added

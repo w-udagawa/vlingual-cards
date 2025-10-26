@@ -148,7 +148,7 @@ import { VocabCard, SAMPLE_DATA } from './types';
 `public/manifest.json`:
 - `start_url: "/"` - Vercel用のルートパス
 - `display: "standalone"` - アプリモード
-- アイコン実装済み（SVG形式、192x192 / 512x512）
+- アイコン実装済み（チャンネルロゴJPG、192x192 / 512x512）
 
 **PWA Features**:
 - ヘルプモーダル（「?」ボタンで使い方を表示）
@@ -414,9 +414,14 @@ word2,訳2,中級,動詞,"Example 2",https://youtu.be/VIDEO_ID_1
 
 ---
 
-**Version**: 1.3.0
-**Last Updated**: 2025-10-22
-**Changes**:
+**Version**: 1.3.1
+**Last Updated**: 2025-10-25
+**Changes (v1.3.1)**:
+- チャンネルロゴ統合: アプリヘッダーにチャンネルロゴを表示（"VL"テキストロゴを置き換え）
+- PWAアイコンをSVG形式からチャンネルロゴJPG形式に変更（192x192 / 512x512）
+- ホーム画面追加時にチャンネルロゴが表示されるように改善
+
+**Changes (v1.3.0 - 2025-10-22)**:
 - Vercelへの移行（GitHub Pagesから）
 - アプリ内「使い方」ヘルプモーダル追加（「?」ボタン）
 - PWAアイコン実装（SVG形式、192x192 / 512x512）
