@@ -737,7 +737,13 @@ function App() {
                   </span>
                   <span className="part-tag">{currentCard.品詞}</span>
                 </div>
-                <div className="card-word">{currentCard.単語}</div>
+                <div className={`card-word ${
+                  currentCard.単語.length >= 20 || currentCard.単語.split(/\s+/).length >= 3
+                    ? 'long-phrase'
+                    : ''
+                }`}>
+                  {currentCard.単語}
+                </div>
                 <div className="card-hint">タップしてめくる</div>
               </div>
 
