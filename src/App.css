@@ -208,6 +208,7 @@
   perspective: 1000px;
   cursor: pointer;
   user-select: none;
+  transform-style: preserve-3d;
 }
 
 .card-face {
@@ -235,7 +236,7 @@
 }
 
 .card-back {
-  transform: rotateY(-180deg);
+  transform: rotateY(180deg);
   justify-content: flex-start;
   gap: 16px;
 }
