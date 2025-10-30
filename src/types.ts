@@ -9,17 +9,6 @@ export interface VocabCard {
   動画タイトル?: string;  // オプショナル（CSVにない場合も対応）
 }
 
-// 進捗データの型定義
-export interface Progress {
-  seen: number;
-  again: number;
-  ok: number;
-  easy: number;
-}
-
-// 進捗データマップ（単語をキーとする）
-export type ProgressData = Record<string, Progress>;
-
 // 動画グループ（YouTube動画ごと）
 export interface VideoGroup {
   id: string;              // YouTube動画ID
@@ -118,6 +107,5 @@ export const SAMPLE_DATA: VocabCard[] = [
 // Vercelの public/ ディレクトリからCSVを読み込み
 export const DEFAULT_CSV_URL = "/vocab.csv";
 
-// localStorage キー
-export const PROGRESS_STORAGE_KEY = "vocab_progress";
+// localStorage キー（音声設定のみ保持）
 export const AUDIO_ENABLED_KEY = "audio_enabled";

@@ -985,3 +985,73 @@
     font-size: 12px;
   }
 }
+
+/* ============================================
+   完了メッセージスタイル
+   ============================================ */
+
+.completion-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.completion-icon {
+  font-size: 96px;
+  animation: bounce 1s ease-in-out;
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-20px);
+  }
+}
+
+.completion-message h2 {
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--primary);
+  margin: 0;
+}
+
+.completion-message p {
+  font-size: 18px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 640px) {
+  .completion-icon {
+    font-size: 72px;
+  }
+
+  .completion-message h2 {
+    font-size: 28px;
+  }
+
+  .completion-message p {
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .completion-icon {
+    font-size: 64px;
+  }
+
+  .completion-message h2 {
+    font-size: 24px;
+  }
+
+  .completion-message p {
+    font-size: 14px;
+  }
+}

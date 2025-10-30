@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
 import './App.css';
-import type { VocabCard, ProgressData, Progress, VideoGroup } from './types';
+import type { VocabCard, VideoGroup } from './types';
 import {
   SAMPLE_DATA,
   DEFAULT_CSV_URL,
-  PROGRESS_STORAGE_KEY,
   AUDIO_ENABLED_KEY
 } from './types';
 
@@ -34,14 +33,12 @@ function App() {
   const [cards, setCards] = useState<VocabCard[]>([]);
   const [currentCard, setCurrentCard] = useState<VocabCard | null>(null);
   const [isFlipped, setIsFlipped] = useState(false);
-  const [progress, setProgress] = useState<ProgressData>({});
+  const [mastered, setMastered] = useState<Set<string>>(new Set()); // 「余裕」にした単語のSet（セッション管理）
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [audioEnabled, setAudioEnabled] = useState(false);
-  const [todayCount, setTodayCount] = useState(0);
   const [showHelp, setShowHelp] = useState(false);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
-  const [filterMode, setFilterMode] = useState<'all' | 'again'>('all');
 
   // CSV解析関数
   const parseCSV = (csvText: string): VocabCard[] => {
@@ -212,151 +209,69 @@ function App() {
     }
   };
 
-  // localStorage から進捗を読み込み
-  const loadProgress = () => {
-    const stored = localStorage.getItem(PROGRESS_STORAGE_KEY);
-    if (stored) {
-      try {
-        setProgress(JSON.parse(stored));
-      } catch {
-        console.warn('進捗データの読み込みに失敗しました');
-      }
-    }
-
+  // 音声設定を読み込み
+  const loadAudioSetting = () => {
     const audioStored = localStorage.getItem(AUDIO_ENABLED_KEY);
     if (audioStored) {
       setAudioEnabled(audioStored === 'true');
     }
   };
 
-  // 進捗を保存（動画別対応）
-  const saveProgress = (newProgress: ProgressData) => {
-    // 動画別の進捗キーを使用（選択されている場合）
-    const storageKey = selectedVideo
-      ? `vocab_progress_${selectedVideo.id}`
-      : PROGRESS_STORAGE_KEY;
-    localStorage.setItem(storageKey, JSON.stringify(newProgress));
-    setProgress(newProgress);
-  };
+  // シンプルなカード選択（「余裕」以外からランダム）
+  const selectNextCard = (allCards: VocabCard[]): VocabCard | null => {
+    // 「余裕」にしていないカードをフィルター
+    const availableCards = allCards.filter(card => !mastered.has(card.単語));
 
-  // カードフィルター関数
-  const getFilteredCards = (allCards: VocabCard[]): VocabCard[] => {
-    if (filterMode === 'all') {
-      return allCards;
-    }
-    // 'again'モード: again > 0 のカードのみ
-    return allCards.filter(card => {
-      const p = progress[card.単語];
-      return p && p.again > 0;
-    });
-  };
-
-  // スマートスケジューリング（改善版）
-  const selectNextCard = (allCards: VocabCard[], currentProgress: ProgressData): VocabCard => {
-    // 1. 未学習カード（seen === 0）があればランダム選択
-    const unseenCards = allCards.filter(card => {
-      const p = currentProgress[card.単語];
-      return !p || p.seen === 0;
-    });
-
-    if (unseenCards.length > 0) {
-      const selected = unseenCards[Math.floor(Math.random() * unseenCards.length)];
-      console.log('[CARD_SELECT]', {
-        operation: 'selectNextCard',
-        strategy: 'unseen',
-        word: selected.単語,
-        unseenCount: unseenCards.length,
-        timestamp: new Date().toISOString()
-      });
-      return selected;
+    if (availableCards.length === 0) {
+      return null; // 全て「余裕」になった
     }
 
-    // 2. 全て学習済みの場合、スコアベースの重み付きランダム選択
-    const score = (word: string) => {
-      const p = currentProgress[word] || { seen: 0, again: 0, ok: 0, easy: 0 };
-      return Math.max(1, p.seen * 1 + p.again * 3 - p.easy); // 最小1
-    };
-
-    // スコア上位10枚からランダム選択（カード数が少ない場合は全体から）
-    const sortedCards = [...allCards].sort((a, b) => score(b.単語) - score(a.単語));
-    const topN = Math.min(10, sortedCards.length);
-    const candidateCards = sortedCards.slice(0, topN);
-
-    // 重み付きランダム選択
-    const weights = candidateCards.map(card => score(card.単語));
-    const totalWeight = weights.reduce((sum, w) => sum + w, 0);
-    const random = Math.random() * totalWeight;
-
-    let cumulative = 0;
-    for (let i = 0; i < candidateCards.length; i++) {
-      cumulative += weights[i];
-      if (random <= cumulative) {
-        const selected = candidateCards[i];
-        console.log('[CARD_SELECT]', {
-          operation: 'selectNextCard',
-          strategy: 'weighted_random',
-          word: selected.単語,
-          score: score(selected.単語),
-          topN,
-          timestamp: new Date().toISOString()
-        });
-        return selected;
-      }
-    }
-
-    // フォールバック（数値誤差対策）
-    const selected = candidateCards[0];
+    // ランダムに選択
+    const selected = availableCards[Math.floor(Math.random() * availableCards.length)];
     console.log('[CARD_SELECT]', {
       operation: 'selectNextCard',
-      strategy: 'fallback',
       word: selected.単語,
-      score: score(selected.単語),
+      remaining: availableCards.length,
+      total: allCards.length,
       timestamp: new Date().toISOString()
     });
     return selected;
   };
 
-  // 評価処理
+  // 評価処理（シンプル版）
   const handleRate = (type: 'again' | 'ok' | 'easy') => {
     if (!currentCard) return;
 
     const word = currentCard.単語;
-    const currentP: Progress = progress[word] || { seen: 0, again: 0, ok: 0, easy: 0 };
 
-    const newProgress = {
-      ...progress,
-      [word]: {
-        seen: currentP.seen + 1,
-        again: currentP.again + (type === 'again' ? 1 : 0),
-        ok: currentP.ok + (type === 'ok' ? 1 : 0),
-        easy: currentP.easy + (type === 'easy' ? 1 : 0)
-      }
-    };
+    // 「余裕」の場合のみ、masteredに追加
+    if (type === 'easy') {
+      const newMastered = new Set(mastered);
+      newMastered.add(word);
+      setMastered(newMastered);
 
-    console.log('[CARD_RATE]', {
-      operation: 'handleRate',
-      word,
-      rating: type,
-      previousProgress: currentP,
-      newProgress: newProgress[word],
-      timestamp: new Date().toISOString()
-    });
-
-    saveProgress(newProgress);
-    setTodayCount(prev => prev + 1);
-
-    // 次のカードへ（フリップせずに即座に遷移、フィルター適用）
-    setIsFlipped(false);
-    const filteredCards = getFilteredCards(cards);
-    if (filteredCards.length > 0) {
-      const nextCard = selectNextCard(filteredCards, newProgress);
-      setCurrentCard(nextCard);
+      console.log('[CARD_RATE]', {
+        operation: 'handleRate',
+        word,
+        rating: 'easy',
+        mastered: true,
+        remaining: cards.length - newMastered.size,
+        timestamp: new Date().toISOString()
+      });
     } else {
-      // フィルター結果が0件になった場合、フィルターを解除して続行
-      setFilterMode('all');
-      const nextCard = selectNextCard(cards, newProgress);
-      setCurrentCard(nextCard);
+      console.log('[CARD_RATE]', {
+        operation: 'handleRate',
+        word,
+        rating: type,
+        mastered: false,
+        timestamp: new Date().toISOString()
+      });
     }
+
+    // 次のカードへ
+    setIsFlipped(false);
+    const nextCard = selectNextCard(cards);
+    setCurrentCard(nextCard);
   };
 
   // 音声読み上げ
@@ -385,30 +300,16 @@ function App() {
     localStorage.setItem(AUDIO_ENABLED_KEY, String(newValue));
   };
 
-  // 進捗リセット（動画別対応）
+  // 進捗リセット（セッションリセット）
   const handleReset = () => {
-    const message = selectedVideo
-      ? `「${selectedVideo.title}」の進捗をリセットしてもよろしいですか？`
-      : '全ての動画の進捗をリセットしてもよろしいですか？';
+    const message = 'この セッションの進捗をリセットしてもよろしいですか？\n（「余裕」にした単語が全て再表示されます）';
 
     if (confirm(message)) {
-      if (selectedVideo) {
-        // 選択中の動画のみリセット
-        localStorage.removeItem(`vocab_progress_${selectedVideo.id}`);
-      } else {
-        // 全ての進捗をリセット（グローバルキーと全動画別キー）
-        localStorage.removeItem(PROGRESS_STORAGE_KEY);
-        allVideos.forEach(video => {
-          localStorage.removeItem(`vocab_progress_${video.id}`);
-        });
-      }
-
-      setProgress({});
-      setTodayCount(0);
-      setFilterMode('all'); // フィルターもリセット
+      setMastered(new Set()); // 「余裕」リストをクリア
 
       if (cards.length > 0) {
-        setCurrentCard(selectNextCard(cards, {}));
+        const nextCard = selectNextCard(cards);
+        setCurrentCard(nextCard);
       }
     }
   };
@@ -420,18 +321,7 @@ function App() {
     setScreen('study');
     setIsFlipped(false);
     setCurrentCard(null);
-    setTodayCount(0);
-    // 動画ごとの進捗を読み込み
-    const videoProgress = localStorage.getItem(`vocab_progress_${video.id}`);
-    if (videoProgress) {
-      try {
-        setProgress(JSON.parse(videoProgress));
-      } catch {
-        setProgress({});
-      }
-    } else {
-      setProgress({});
-    }
+    setMastered(new Set()); // セッションリセット
   };
 
   // 全ての動画を学習
@@ -441,8 +331,7 @@ function App() {
     setScreen('study');
     setIsFlipped(false);
     setCurrentCard(null);
-    setTodayCount(0);
-    loadProgress();
+    setMastered(new Set()); // セッションリセット
   };
 
   // ギャラリーに戻る
@@ -461,7 +350,7 @@ function App() {
 
   // 初期化
   useEffect(() => {
-    loadProgress();
+    loadAudioSetting();
     loadCSV();
 
     // PWAインストールバナー表示（初回アクセス時のみ）
@@ -471,16 +360,13 @@ function App() {
     }
   }, []);
 
-  // カードが読み込まれたら最初のカードを選択（フィルター対応）
+  // カードが読み込まれたら最初のカードを選択
   useEffect(() => {
-    const filteredCards = getFilteredCards(cards);
-    if (filteredCards.length > 0 && !currentCard) {
-      setCurrentCard(selectNextCard(filteredCards, progress));
-    } else if (filteredCards.length === 0 && cards.length > 0) {
-      // フィルター結果が0件の場合、フィルターを解除
-      setFilterMode('all');
+    if (cards.length > 0 && !currentCard) {
+      const nextCard = selectNextCard(cards);
+      setCurrentCard(nextCard);
     }
-  }, [cards, currentCard, progress, filterMode]);
+  }, [cards, currentCard, mastered]);
 
   // 難易度に応じた色を取得
   const getLevelColor = (level: string): string => {
@@ -603,12 +489,18 @@ function App() {
                   <li><strong>カードをタップ</strong>: 表面（英単語）をタップして裏面（和訳と例文）を確認</li>
                   <li><strong>3段階で評価</strong>:
                     <ul>
-                      <li>🔴 <strong>覚えてない</strong>: もっと復習が必要</li>
-                      <li>🟡 <strong>だいたいOK</strong>: ある程度わかった</li>
-                      <li>🟢 <strong>余裕</strong>: 完璧に覚えている</li>
+                      <li>🔴 <strong>覚えてない</strong>: もう一度このカードが出てきます</li>
+                      <li>🟡 <strong>だいたいOK</strong>: もう一度このカードが出てきます</li>
+                      <li>🟢 <strong>余裕</strong>: このカードは **今回の学習では** もう出ません</li>
                     </ul>
                   </li>
+                  <li><strong>ゴール</strong>: 全ての単語を「余裕」にすることが目標です！</li>
                 </ol>
+              </section>
+
+              <section className="help-section">
+                <h3>📊 進捗表示</h3>
+                <p>画面上部に「残り○/○枚」と表示されます。「余裕」にした単語の数が減っていきます。全て「余裕」にすると完了です！</p>
               </section>
 
               <section className="help-section">
@@ -617,42 +509,19 @@ function App() {
               </section>
 
               <section className="help-section">
-                <h3>🔍 フィルター機能</h3>
-                <p>ヘッダーのフィルターボタンで表示を切り替えられます：</p>
+                <h3>💡 セッション管理</h3>
+                <p><strong>記録は学習中のみ保持されます</strong>：</p>
                 <ul>
-                  <li><strong>📚 全て</strong>: 全ての単語を学習</li>
-                  <li><strong>🔴 覚えてない</strong>: 「覚えてない」と評価した単語のみ集中復習</li>
-                </ul>
-              </section>
-
-              <section className="help-section">
-                <h3>📊 スマートスケジューリング</h3>
-                <p>学習効率を最大化するため、以下のルールで次のカードが選ばれます：</p>
-                <ul>
-                  <li><strong>未学習カード優先</strong>: まだ見ていないカードがあればランダムに表示</li>
-                  <li><strong>重み付き復習</strong>: 全て学習済みなら、苦手なカード（「覚えてない」が多い）ほど出やすくなります</li>
-                </ul>
-              </section>
-
-              <section className="help-section">
-                <h3>💾 学習記録について</h3>
-                <p><strong>記録はブラウザに保存されます</strong>：</p>
-                <ul>
-                  <li>✅ ブラウザを閉じても記録は保持されます</li>
-                  <li>✅ 数日後・数週間後も記録は残ります</li>
-                  <li>⚠️ ブラウザのキャッシュクリアで消えます</li>
-                  <li>⚠️ 異なるブラウザ・デバイスでは記録は共有されません</li>
-                  <li>📱 同じブラウザを使い続ける限り、記録は永続的に保持されます</li>
+                  <li>✅ 学習中は「余裕」にした単語が記憶されます</li>
+                  <li>🔄 ページを閉じる/リロードすると記録がリセットされます</li>
+                  <li>🎯 <strong>1つの動画を「やり切る」学習スタイル</strong>です</li>
+                  <li>📱 集中して全単語を「余裕」にすることを目指しましょう！</li>
                 </ul>
               </section>
 
               <section className="help-section">
                 <h3>🔄 進捗リセット</h3>
-                <p>画面下部の「進捗リセット」ボタンで学習記録をリセットできます：</p>
-                <ul>
-                  <li><strong>動画選択時</strong>: その動画の進捗のみリセット</li>
-                  <li><strong>「全ての動画」選択時</strong>: 全動画の進捗をリセット</li>
-                </ul>
+                <p>画面下部の「進捗リセット」ボタンで、今回の学習をリセットして最初からやり直せます。「余裕」にした単語が全て再表示されます。</p>
               </section>
 
               <section className="help-section">
@@ -691,14 +560,7 @@ function App() {
           </h1>
         </div>
         <div className="header-right">
-          <span className="today-count">{todayCount}枚</span>
-          <button
-            onClick={() => setFilterMode(prev => prev === 'all' ? 'again' : 'all')}
-            className={`filter-button ${filterMode === 'again' ? 'active' : ''}`}
-            title={filterMode === 'all' ? '覚えてない単語のみ表示' : '全ての単語を表示'}
-          >
-            {filterMode === 'all' ? '📚 全て' : '🔴 覚えてない'}
-          </button>
+          <span className="today-count">残り {cards.length - mastered.size}/{cards.length}枚</span>
           {'speechSynthesis' in window && (
             <button onClick={toggleAudio} className="icon-button" title="音声読み上げ">
               {audioEnabled ? '🔊' : '🔇'}
@@ -720,7 +582,7 @@ function App() {
 
       {/* カードコンテナ */}
       <main className="card-container">
-        {currentCard && (
+        {currentCard ? (
           <>
             <div
               className={`card ${isFlipped ? 'flipped' : ''}`}
@@ -787,6 +649,15 @@ function App() {
               </button>
             </div>
           </>
+        ) : (
+          <div className="completion-message">
+            <div className="completion-icon">🎉</div>
+            <h2>完了！</h2>
+            <p>この動画の全ての単語を「余裕」にしました！</p>
+            <button onClick={handleReset} className="btn-retry">
+              もう一度学習する
+            </button>
+          </div>
         )}
       </main>
 

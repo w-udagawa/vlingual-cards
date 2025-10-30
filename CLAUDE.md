@@ -30,20 +30,21 @@ git push origin main
 ### Single Component Architecture
 このアプリは **App.tsx** に全てのロジックを集約したシンプルな構造です。コンポーネント分割は意図的に行っていません。
 
-**src/App.tsx** (385行):
+**src/App.tsx** (~700行):
 - CSV読み込み・解析
 - カード表示・フリップ制御
 - 評価システム（3段階）
-- スマートスケジューリング
-- 進捗保存（localStorage）
+- シンプルなランダム選択
+- セッション管理（メモリ内のみ）
 - 音声読み上げ（Web Speech API）
+- 完了メッセージ表示
 
 **src/types.ts**:
 - `VocabCard`: CSV行のデータ構造
-- `Progress`: 単語ごとの学習進捗（seen/again/ok/easy）
-- `ProgressData`: Record<単語, Progress>
+- `VideoGroup`: 動画ごとのグループ化
 - `SAMPLE_DATA`: フォールバック用10単語
-- `DEFAULT_CSV_URL`: GitHub Raw URLへの定数
+- `DEFAULT_CSV_URL`: Vercel `/vocab.csv` への定数
+- `AUDIO_ENABLED_KEY`: 音声設定用のlocalStorageキー
 
 ### Data Flow
 
@@ -56,22 +57,62 @@ SAMPLE_DATA にフォールバック
   ↓
 parseCSV() で VocabCard[] に変換
   ↓
-selectNextCard() でスケジューリング
+動画ごとにグループ化 → VideoGroup[]
   ↓
-カード表示 → 評価 → 進捗更新 → 次のカード
+動画選択 → セッション開始（mastered: Set<string> = 空）
+  ↓
+selectNextCard() でランダム選択（「余裕」以外から）
+  ↓
+カード表示 → 評価
+  - 「余裕」タップ → mastered に追加 → カード非表示
+  - その他 → カード継続表示
+  ↓
+次のカード選択（ループ）
+  ↓
+全て「余裕」→ 🎉完了メッセージ
+  ↓
+ページを閉じる/リロード → セッションリセット（最初から）
 ```
 
-### Scheduling Algorithm
+### Learning Model (v2.0.0)
+
+**シンプルなセッション制学習**:
+- **ゴール**: 1つの動画の全単語を「余裕」にすること
+- **評価の効果**:
+  - 🔴 **覚えてない** / 🟡 **だいたいOK**: カードが何度も出現
+  - 🟢 **余裕**: そのセッション中は非表示（`mastered` Setに追加）
+- **ランダム選択**: 「余裕」以外のカードからランダムに選択（スコアリングなし）
+- **セッション管理**: ページを閉じると記録リセット、次回は最初から
 
 App.tsx の `selectNextCard()` 関数:
-1. **未学習カード優先**: `seen === 0` のカードをランダム選択
-2. **スコア降順ソート**: 全て学習済みなら `score = seen × 1 + again × 3 - easy` で計算し、スコアの高い順に復習
+```typescript
+const selectNextCard = (allCards: VocabCard[]): VocabCard | null => {
+  // 「余裕」にしていないカードをフィルター
+  const availableCards = allCards.filter(card => !mastered.has(card.単語));
 
-### Progress Storage
+  if (availableCards.length === 0) {
+    return null; // 全て「余裕」になった
+  }
 
-localStorage に以下のキーで保存:
-- `vocab_progress`: 単語ごとの進捗データ（JSON）
-- `audio_enabled`: 音声読み上げON/OFF（boolean文字列）
+  // ランダムに選択
+  return availableCards[Math.floor(Math.random() * availableCards.length)];
+};
+```
+
+### Session Storage
+
+**セッション管理（メモリ内）**:
+- `mastered: Set<string>` - 「余裕」にした単語のSet（State変数）
+- ページを閉じる/リロード → 自動リセット
+- 動画を切り替え → 自動リセット
+
+**永続保存（localStorage）**:
+- `audio_enabled`: 音声読み上げON/OFF（boolean文字列）のみ保存
+
+**設計思想**:
+- **集中学習を促進**: 1つの動画を「やり切る」モチベーション
+- **シンプルさ**: 複雑な進捗管理なし、わかりやすい学習フロー
+- **新鮮さ**: 毎回最初から、反復学習に最適
 
 ## Configuration
 
@@ -136,8 +177,8 @@ accomplish,達成する,中級,動詞,"例文 (日本語訳)",https://youtu.be/a
 
 ```typescript
 // 正しい
-import type { VocabCard, ProgressData, Progress } from './types';
-import { SAMPLE_DATA, DEFAULT_CSV_URL } from './types';
+import type { VocabCard, VideoGroup } from './types';
+import { SAMPLE_DATA, DEFAULT_CSV_URL, AUDIO_ENABLED_KEY } from './types';
 
 // 誤り（ビルドエラー）
 import { VocabCard, SAMPLE_DATA } from './types';
@@ -219,34 +260,34 @@ https://vlingual-cards.vercel.app に反映
 ```javascript
 [CSV_LOAD] {
   operation: "loadCSV",
-  url: "https://raw.githubusercontent.com/.../vocab.csv",
+  url: "/vocab.csv",
   status: "success",
-  cardCount: 20,
-  timestamp: "2025-10-21T13:04:11.708Z"
+  cardCount: 50,
+  timestamp: "2025-10-30T13:04:11.708Z"
 }
 
 [CARD_SELECT] {
   operation: "selectNextCard",
-  strategy: "unseen",  // または "score"
   word: "accomplish",
-  unseenCount: 10,     // または score
-  timestamp: "2025-10-21T13:04:11.709Z"
+  remaining: 25,  // 残りカード数
+  total: 50,      // 総カード数
+  timestamp: "2025-10-30T13:04:11.709Z"
 }
 
 [CARD_RATE] {
   operation: "handleRate",
   word: "accomplish",
-  rating: "ok",  // "again" | "ok" | "easy"
-  previousProgress: { seen: 0, again: 0, ok: 0, easy: 0 },
-  newProgress: { seen: 1, again: 0, ok: 1, easy: 0 },
-  timestamp: "2025-10-21T13:04:15.123Z"
+  rating: "easy",  // "again" | "ok" | "easy"
+  mastered: true,  // 「余裕」の場合のみ true
+  remaining: 24,   // 残りカード数（「余裕」の場合）
+  timestamp: "2025-10-30T13:04:15.123Z"
 }
 ```
 
 **ログの見方**:
 - `[CSV_LOAD]`: CSV読み込みの成功/失敗、単語数
-- `[CARD_SELECT]`: どの戦略でカードが選ばれたか
-- `[CARD_RATE]`: 評価の履歴と進捗の変化
+- `[CARD_SELECT]`: 選択されたカードと残りカード数
+- `[CARD_RATE]`: 評価とマスター状態（「余裕」かどうか）
 
 ## Troubleshooting
 
@@ -355,16 +396,18 @@ const groupCardsByVideo = (cards: VocabCard[]): VideoGroup[] => {
 4. User selects video → Switch to study screen
 5. Back button (visible if multiple videos) → Return to gallery
 
-### Video-Specific Progress Storage
+### Session Management (v2.0.0)
 
-**localStorage Keys**:
-- Global: `vocab_progress` (backward compatibility)
-- Per-video: `vocab_progress_${videoId}`
+**セッション制学習**:
+- 動画選択時に新しいセッション開始
+- `mastered: Set<string>` を空でリセット
+- ページを閉じる/リロードで自動リセット
+- 永続保存なし（意図的な設計）
 
-**Behavior** (App.tsx:329-367):
-- When selecting a video: Load `vocab_progress_${videoId}`
-- When selecting "All Videos": Load global `vocab_progress`
-- Progress isolation: Each video maintains independent learning state
+**利点**:
+- シンプルで分かりやすい
+- 毎回新鮮な気持ちで学習開始
+- 「全て余裕にする」という明確なゴール
 
 ### Gallery UI (App.css:267-416)
 
@@ -407,25 +450,43 @@ word2,訳2,中級,動詞,"Example 2",https://youtu.be/VIDEO_ID_1
 **Phase 2 (PWA完全対応)**:
 - Service Worker（オフライン対応、キャッシング）
 
-**Phase 3 (拡張機能)**:
-- 統計ダッシュボード（学習進捗のグラフ化）
-- エクスポート機能（CSV/JSON形式で進捗データ出力）
-- 動画タイトルの手動編集機能（ギャラリー画面で直接編集）
+**Phase 3 (オプション機能)**:
+- 進捗の永続保存（オプション設定で有効化）
+- 統計表示（セッション内での学習回数など）
+- カスタムCSVアップロード機能
 
 ---
 
-**Version**: 1.3.1
-**Last Updated**: 2025-10-25
-**Changes (v1.3.1)**:
-- チャンネルロゴ統合: アプリヘッダーにチャンネルロゴを表示（"VL"テキストロゴを置き換え）
-- PWAアイコンをSVG形式からチャンネルロゴJPG形式に変更（192x192 / 512x512）
-- ホーム画面追加時にチャンネルロゴが表示されるように改善
+**Version**: 2.0.0
+**Last Updated**: 2025-10-30
+
+**Changes (v2.0.0 - 2025-10-30) - 🎉 大規模リファクタリング**:
+- **シンプルなセッション制学習モデルへ変更**:
+  - 複雑なスコアリングアルゴリズムを廃止
+  - 「余裕」タップ → 即座に非表示（シンプルなランダム選択）
+  - ページを閉じるとリセット（セッション管理）
+- **進捗保存の廃止**:
+  - localStorageへの永続保存を削除（音声設定のみ保持）
+  - `mastered: Set<string>` でセッション内管理
+- **UI改善**:
+  - ヘッダーに「残り○/○枚」の進捗表示を追加
+  - 全て「余裕」にすると🎉完了メッセージ表示
+  - 「覚えてない」フィルター機能を削除（不要に）
+- **ヘルプモーダル更新**:
+  - 新しい学習モデルの説明に変更
+  - セッション管理の説明を追加
+- **コード削減**:
+  - 約200行のコード削減（Progress/ProgressData型削除、複雑なロジック削除）
+- **設計思想**:
+  - 「1つの動画を集中してやり切る」モチベーション向上
+  - シンプルで分かりやすい学習フロー
+  - 毎回新鮮な気持ちで反復学習
+
+**Changes (v1.3.1 - 2025-10-25)**:
+- チャンネルロゴ統合
+- カードフリップの裏面透過問題を修正（backface-visibility）
 
 **Changes (v1.3.0 - 2025-10-22)**:
-- Vercelへの移行（GitHub Pagesから）
-- アプリ内「使い方」ヘルプモーダル追加（「?」ボタン）
-- PWAアイコン実装（SVG形式、192x192 / 512x512）
-- PWAインストール促進バナー追加（初回アクセス時、3秒後に表示）
-- DISTRIBUTION.md（視聴者向け配布案内）追加
-- 自動デプロイ設定（GitHub push時にVercelが自動ビルド・デプロイ）
-- base path変更（`/vlingual-cards/` → `/`）
+- Vercelへの移行
+- ヘルプモーダル追加
+- PWAインストール促進バナー追加
