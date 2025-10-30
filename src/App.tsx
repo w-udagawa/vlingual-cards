@@ -218,9 +218,9 @@ function App() {
   };
 
   // シンプルなカード選択（「余裕」以外からランダム）
-  const selectNextCard = (allCards: VocabCard[]): VocabCard | null => {
+  const selectNextCard = (allCards: VocabCard[], currentMastered: Set<string> = mastered): VocabCard | null => {
     // 「余裕」にしていないカードをフィルター
-    const availableCards = allCards.filter(card => !mastered.has(card.単語));
+    const availableCards = allCards.filter(card => !currentMastered.has(card.単語));
 
     if (availableCards.length === 0) {
       return null; // 全て「余裕」になった
@@ -258,6 +258,11 @@ function App() {
         remaining: cards.length - newMastered.size,
         timestamp: new Date().toISOString()
       });
+
+      // 次のカードへ（最新のmasteredを使用）
+      setIsFlipped(false);
+      const nextCard = selectNextCard(cards, newMastered);
+      setCurrentCard(nextCard);
     } else {
       console.log('[CARD_RATE]', {
         operation: 'handleRate',
@@ -266,12 +271,12 @@ function App() {
         mastered: false,
         timestamp: new Date().toISOString()
       });
-    }
 
-    // 次のカードへ
-    setIsFlipped(false);
-    const nextCard = selectNextCard(cards);
-    setCurrentCard(nextCard);
+      // 次のカードへ（現在のmasteredを使用）
+      setIsFlipped(false);
+      const nextCard = selectNextCard(cards);
+      setCurrentCard(nextCard);
+    }
   };
 
   // 音声読み上げ
@@ -305,10 +310,11 @@ function App() {
     const message = 'この セッションの進捗をリセットしてもよろしいですか？\n（「余裕」にした単語が全て再表示されます）';
 
     if (confirm(message)) {
-      setMastered(new Set()); // 「余裕」リストをクリア
+      const emptySet = new Set<string>();
+      setMastered(emptySet); // 「余裕」リストをクリア
 
       if (cards.length > 0) {
-        const nextCard = selectNextCard(cards);
+        const nextCard = selectNextCard(cards, emptySet);
         setCurrentCard(nextCard);
       }
     }
@@ -363,7 +369,7 @@ function App() {
   // カードが読み込まれたら最初のカードを選択
   useEffect(() => {
     if (cards.length > 0 && !currentCard) {
-      const nextCard = selectNextCard(cards);
+      const nextCard = selectNextCard(cards, mastered);
       setCurrentCard(nextCard);
     }
   }, [cards, currentCard, mastered]);

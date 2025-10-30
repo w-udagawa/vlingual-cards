@@ -209,6 +209,7 @@
   cursor: pointer;
   user-select: none;
   transform-style: preserve-3d;
+  isolation: isolate;
 }
 
 .card-face {
@@ -216,6 +217,7 @@
   width: 100%;
   height: 100%;
   backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
   background-color: var(--card-bg);
   border: 2px solid var(--border);
   border-radius: 16px;
@@ -224,11 +226,14 @@
   flex-direction: column;
   transition: transform 0.5s ease-in-out;
   transform-style: preserve-3d;
+  opacity: 1;
 }
 
 .card-front {
   transform: rotateY(0deg);
   justify-content: space-between;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 .card.flipped .card-front {
@@ -239,6 +244,8 @@
   transform: rotateY(180deg);
   justify-content: flex-start;
   gap: 16px;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 .card.flipped .card-back {
@@ -317,6 +324,9 @@
   line-height: 1.6;
   flex: 1;
   overflow-y: auto;
+  opacity: 1;
+  position: relative;
+  z-index: 1;
 }
 
 .video-link {
