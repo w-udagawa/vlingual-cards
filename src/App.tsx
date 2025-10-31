@@ -39,6 +39,7 @@ function App() {
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false); // カード切り替え中かどうか
 
   // CSV解析関数
   const parseCSV = (csvText: string): VocabCard[] => {
@@ -238,9 +239,9 @@ function App() {
     return selected;
   };
 
-  // 評価処理（シンプル版）
+  // 評価処理（スライドアニメーション対応版）
   const handleRate = (type: 'again' | 'ok' | 'easy') => {
-    if (!currentCard) return;
+    if (!currentCard || isTransitioning) return; // 遷移中は無視
 
     const word = currentCard.単語;
 
@@ -248,7 +249,6 @@ function App() {
     if (type === 'easy') {
       const newMastered = new Set(mastered);
       newMastered.add(word);
-      setMastered(newMastered);
 
       console.log('[CARD_RATE]', {
         operation: 'handleRate',
@@ -259,10 +259,17 @@ function App() {
         timestamp: new Date().toISOString()
       });
 
-      // 次のカードへ（最新のmasteredを使用）
-      setIsFlipped(false);
-      const nextCard = selectNextCard(cards, newMastered);
-      setCurrentCard(nextCard);
+      // スライドアニメーション開始
+      setIsTransitioning(true);
+      setIsFlipped(false); // フリップ状態をリセット
+
+      // 600ms後に次のカードをセット（スライドアウト完了を待つ）
+      setTimeout(() => {
+        setMastered(newMastered);
+        const nextCard = selectNextCard(cards, newMastered);
+        setCurrentCard(nextCard);
+        setIsTransitioning(false);
+      }, 600);
     } else {
       console.log('[CARD_RATE]', {
         operation: 'handleRate',
@@ -272,10 +279,16 @@ function App() {
         timestamp: new Date().toISOString()
       });
 
-      // 次のカードへ（現在のmasteredを使用）
-      setIsFlipped(false);
-      const nextCard = selectNextCard(cards);
-      setCurrentCard(nextCard);
+      // スライドアニメーション開始
+      setIsTransitioning(true);
+      setIsFlipped(false); // フリップ状態をリセット
+
+      // 600ms後に次のカードをセット（スライドアウト完了を待つ）
+      setTimeout(() => {
+        const nextCard = selectNextCard(cards);
+        setCurrentCard(nextCard);
+        setIsTransitioning(false);
+      }, 600);
     }
   };
 
@@ -591,8 +604,9 @@ function App() {
         {currentCard ? (
           <>
             <div
-              className={`card ${isFlipped ? 'flipped' : ''}`}
-              onClick={handleFlip}
+              className={`card ${isFlipped ? 'flipped' : ''} ${isTransitioning ? 'slide-out' : 'slide-in'}`}
+              onClick={isTransitioning ? undefined : handleFlip}
+              style={{ pointerEvents: isTransitioning ? 'none' : 'auto' }}
             >
               {/* カード表面 */}
               <div className="card-face card-front">
@@ -638,18 +652,21 @@ function App() {
               <button
                 onClick={() => handleRate('again')}
                 className="btn-rating btn-again"
+                disabled={isTransitioning}
               >
                 覚えてない
               </button>
               <button
                 onClick={() => handleRate('ok')}
                 className="btn-rating btn-ok"
+                disabled={isTransitioning}
               >
                 だいたいOK
               </button>
               <button
                 onClick={() => handleRate('easy')}
                 className="btn-rating btn-easy"
+                disabled={isTransitioning}
               >
                 余裕
               </button>
