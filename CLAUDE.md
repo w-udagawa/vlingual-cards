@@ -30,9 +30,10 @@ git push origin main
 ### Single Component Architecture
 このアプリは **App.tsx** に全てのロジックを集約したシンプルな構造です。コンポーネント分割は意図的に行っていません。
 
-**src/App.tsx** (~700行):
+**src/App.tsx** (~806行):
 - CSV読み込み・解析
 - カード表示・フリップ制御
+- スライドアニメーション（カード遷移）
 - 評価システム（3段階）
 - シンプルなランダム選択
 - セッション管理（メモリ内のみ）
@@ -159,7 +160,48 @@ accomplish,達成する,中級,動詞,"例文 (日本語訳)",https://youtu.be/a
 
 カスタムCSS（Tailwind CSS不使用）:
 - `src/index.css`: グローバルスタイル、CSS Variables定義
-- `src/App.css`: コンポーネントスタイル、3Dフリップアニメーション
+- `src/App.css`: コンポーネントスタイル、3Dフリップアニメーション、スライドアニメーション
+
+### Card Transition Animation (v2.0.1)
+
+**スライドアニメーション実装** (`App.css:202-247`):
+- カード遷移時のスムーズなアニメーション
+- `@keyframes slideOutToRight`: 右へスライドアウト（400ms）
+- `@keyframes slideInFromLeft`: 左からスライドイン（400ms）
+- CSS `animation`のみ使用（`transition`との競合を回避）
+
+**重要な実装ポイント**:
+```css
+/* 遷移アニメーション用の基本スタイル */
+.card {
+  /* transitionは使用しない（animationと競合するため） */
+}
+
+.card.slide-out {
+  animation: slideOutToRight 0.4s ease-in-out forwards;
+  /* forwards: アニメーション最終状態を保持 */
+}
+
+.card.slide-in {
+  animation: slideInFromLeft 0.4s ease-in-out;
+}
+```
+
+**タイミング管理** (`App.tsx:262-291`):
+```typescript
+setIsTransitioning(true);  // アニメーション開始
+setIsFlipped(false);       // フリップ状態リセット
+
+setTimeout(() => {
+  setCurrentCard(nextCard);     // カード切り替え
+  setIsTransitioning(false);    // アニメーション終了
+}, 450);  // 400ms animation + 50ms buffer
+```
+
+**モバイル対応**:
+- CSS `transition`と`animation`の競合を解消
+- モバイルでのちらつき（二重アニメーション）を完全解消
+- iOS Safari / Android Chrome で動作確認済み
 
 **カラーパレット** (CSS Variables):
 ```css
@@ -457,8 +499,30 @@ word2,訳2,中級,動詞,"Example 2",https://youtu.be/VIDEO_ID_1
 
 ---
 
-**Version**: 2.0.0
-**Last Updated**: 2025-10-30
+**Version**: 2.0.1
+**Last Updated**: 2025-10-31
+
+**Changes (v2.0.1 - 2025-10-31) - 🐛 スライドアニメーション修正**:
+- **カード遷移アニメーションの実装**:
+  - 評価ボタン押下後、カードが右にスライドアウト（400ms）
+  - 新しいカードが左からスライドイン（400ms）
+  - 次のカードの和訳が見えてしまう問題を完全解消
+- **モバイルでのちらつき問題修正**:
+  - CSS `transition`と`animation`の競合を解消
+  - `transition`を削除し、`animation`のみ使用
+  - `.card.slide-out`を`@keyframes slideOutToRight`に変更
+  - `forwards`でアニメーション最終状態を保持
+- **タイミング最適化**:
+  - `setTimeout`: 600ms → 450ms（400ms animation + 50ms buffer）
+  - モバイルでの二重アニメーション（左→消える→右）を完全解消
+- **UX改善**:
+  - アニメーション中は評価ボタン無効化（`opacity: 0.5`）
+  - カードタップ無効化で誤操作防止
+  - デスクトップ・モバイル両方でスムーズな動作
+- **技術詳細**:
+  - App.tsx: `isTransitioning` state追加、handleRate関数改修
+  - App.css: `@keyframes slideOutToRight`/`slideInFromLeft`追加
+  - iOS Safari / Android Chrome で動作確認済み
 
 **Changes (v2.0.0 - 2025-10-30) - 🎉 大規模リファクタリング**:
 - **シンプルなセッション制学習モデルへ変更**:
