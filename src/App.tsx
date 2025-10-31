@@ -263,13 +263,13 @@ function App() {
       setIsTransitioning(true);
       setIsFlipped(false); // フリップ状態をリセット
 
-      // 600ms後に次のカードをセット（スライドアウト完了を待つ）
+      // 450ms後に次のカードをセット（アニメーション400ms + 50msバッファ）
       setTimeout(() => {
         setMastered(newMastered);
         const nextCard = selectNextCard(cards, newMastered);
         setCurrentCard(nextCard);
         setIsTransitioning(false);
-      }, 600);
+      }, 450);
     } else {
       console.log('[CARD_RATE]', {
         operation: 'handleRate',
@@ -283,12 +283,12 @@ function App() {
       setIsTransitioning(true);
       setIsFlipped(false); // フリップ状態をリセット
 
-      // 600ms後に次のカードをセット（スライドアウト完了を待つ）
+      // 450ms後に次のカードをセット（アニメーション400ms + 50msバッファ）
       setTimeout(() => {
         const nextCard = selectNextCard(cards);
         setCurrentCard(nextCard);
         setIsTransitioning(false);
-      }, 600);
+      }, 450);
     }
   };
 

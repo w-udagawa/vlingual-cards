@@ -210,14 +210,24 @@
   user-select: none;
   transform-style: preserve-3d;
   isolation: isolate;
-  transition: transform 0.4s ease-in-out, opacity 0.4s ease-in-out;
+  /* transitionを削除（animationのみ使用） */
 }
 
 /* スライドアウトアニメーション（右へ） */
 .card.slide-out {
-  transform: translateX(120%);
-  opacity: 0;
+  animation: slideOutToRight 0.4s ease-in-out forwards;
   pointer-events: none;
+}
+
+@keyframes slideOutToRight {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(120%);
+    opacity: 0;
+  }
 }
 
 /* スライドインアニメーション（左から） */
