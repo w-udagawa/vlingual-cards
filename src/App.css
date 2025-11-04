@@ -1529,49 +1529,6 @@
 }
 
 /* =====================================
-   ギャラリーヘッダー（並び順ボタン付き）
-   ===================================== */
-
-.gallery-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 24px;
-  flex-wrap: wrap;
-}
-
-.gallery-header .gallery-title {
-  margin: 0;
-  flex: 1;
-}
-
-.btn-agency-order {
-  padding: 10px 20px;
-  font-size: 14px;
-  font-weight: 600;
-  color: white;
-  background: var(--primary);
-  border: none;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-}
-
-.btn-agency-order:hover {
-  background: var(--primary-hover);
-  transform: translateY(-1px);
-}
-
-.btn-agency-order:active {
-  transform: translateY(0);
-}
-
-/* =====================================
    並び順変更モーダル
    ===================================== */
 
@@ -1691,14 +1648,6 @@
 }
 
 /* ライトモード対応 */
-[data-theme="light"] .btn-agency-order {
-  background: #64748B;
-}
-
-[data-theme="light"] .btn-agency-order:hover {
-  background: #475569;
-}
-
 [data-theme="light"] .agency-order-item {
   background: white;
   border-color: #E2E8F0;
@@ -1740,16 +1689,6 @@
 
 /* モバイル対応 */
 @media (max-width: 768px) {
-  .gallery-header {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .btn-agency-order {
-    width: 100%;
-    justify-content: center;
-  }
-
   .agency-order-modal {
     max-width: 95vw;
   }

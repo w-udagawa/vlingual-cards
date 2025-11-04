@@ -128,6 +128,7 @@ function App() {
   const [vocabListSource, setVocabListSource] = useState<VideoGroup | null>(null); // 一覧表示する動画
   const [agencyOrder, setAgencyOrder] = useState<string[]>([]); // 事務所の並び順
   const [showAgencyOrderModal, setShowAgencyOrderModal] = useState(false); // 並び順変更モーダルの表示状態
+  const [tempOrder, setTempOrder] = useState<string[]>([]); // 並び順変更モーダル用の一時的な並び順
 
   // CSV解析関数
   const parseCSV = (csvText: string): VocabCard[] => {
@@ -627,6 +628,28 @@ function App() {
     setVocabListSource(null);
   };
 
+  // 並び順を上に移動
+  const moveAgencyUp = (index: number) => {
+    if (index === 0) return;
+    const newOrder = [...tempOrder];
+    [newOrder[index - 1], newOrder[index]] = [newOrder[index], newOrder[index - 1]];
+    setTempOrder(newOrder);
+  };
+
+  // 並び順を下に移動
+  const moveAgencyDown = (index: number) => {
+    if (index === tempOrder.length - 1) return;
+    const newOrder = [...tempOrder];
+    [newOrder[index], newOrder[index + 1]] = [newOrder[index + 1], newOrder[index]];
+    setTempOrder(newOrder);
+  };
+
+  // 並び順を保存
+  const handleSaveAgencyOrder = () => {
+    saveAgencyOrder(tempOrder);
+    setShowAgencyOrderModal(false);
+  };
+
   // テーマ適用（data-theme属性）
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -698,6 +721,33 @@ function App() {
       setCurrentCard(nextCard);
     }
   }, [cards, currentCard, mastered]);
+
+  // 並び順モーダルが開いたときにtempOrderを初期化
+  useEffect(() => {
+    if (showAgencyOrderModal && allCasts.length > 0) {
+      // 事務所ごとにグループ化
+      const agencies = new Map<string, CastGroup[]>();
+      allCasts.forEach(cast => {
+        const agencyName = cast.agency || '未分類';
+        if (!agencies.has(agencyName)) {
+          agencies.set(agencyName, []);
+        }
+        agencies.get(agencyName)!.push(cast);
+      });
+
+      // 現在の並び順を取得（stateまたはデフォルト）
+      const currentOrder = agencyOrder.length > 0
+        ? agencyOrder.filter(name => agencies.has(name))
+        : Array.from(agencies.keys()).sort((a, b) => a.localeCompare(b, 'ja'));
+
+      // 設定にない事務所を追加
+      const allAgencyNames = Array.from(agencies.keys());
+      const missingAgencies = allAgencyNames.filter(name => !currentOrder.includes(name));
+      const fullOrder = [...currentOrder, ...missingAgencies.sort((a, b) => a.localeCompare(b, 'ja'))];
+
+      setTempOrder(fullOrder);
+    }
+  }, [showAgencyOrderModal, allCasts, agencyOrder]);
 
   // 難易度に応じた色を取得
   const getLevelColor = (level: string): string => {
@@ -824,6 +874,13 @@ function App() {
             <h1 className="app-name">Vlingual Cards</h1>
           </div>
           <div className="header-right">
+            <button
+              onClick={() => setShowAgencyOrderModal(true)}
+              className="icon-button"
+              title="事務所の並び順を変更"
+            >
+              ⚙️
+            </button>
             {'speechSynthesis' in window && (
               <button onClick={toggleAudio} className="icon-button" title="音声読み上げ">
                 <AudioIcon enabled={audioEnabled} />
@@ -840,16 +897,7 @@ function App() {
 
         {/* キャスト一覧コンテンツ */}
         <main className="gallery-container">
-          <div className="gallery-header">
-            <h2 className="gallery-title">🎤 キャストを選択してください</h2>
-            <button
-              onClick={() => setShowAgencyOrderModal(true)}
-              className="btn-agency-order"
-              title="事務所の並び順を変更"
-            >
-              ⚙️ 並び順
-            </button>
-          </div>
+          <h2 className="gallery-title">📚 動画一覧</h2>
 
           {/* 事務所ごとにセクション分け */}
           {sortedAgencies.map((agencyName) => {
@@ -914,74 +962,37 @@ function App() {
               </p>
 
               <div className="agency-order-list">
-                {(() => {
-                  // 現在の並び順を取得（stateまたはデフォルト）
-                  const currentOrder = agencyOrder.length > 0
-                    ? agencyOrder.filter(name => agencies.has(name))
-                    : Array.from(agencies.keys()).sort((a, b) => a.localeCompare(b, 'ja'));
-
-                  // 設定にない事務所を追加
-                  const allAgencyNames = Array.from(agencies.keys());
-                  const missingAgencies = allAgencyNames.filter(name => !currentOrder.includes(name));
-                  const fullOrder = [...currentOrder, ...missingAgencies.sort((a, b) => a.localeCompare(b, 'ja'))];
-
-                  const [tempOrder, setTempOrder] = useState(fullOrder);
-
-                  const moveUp = (index: number) => {
-                    if (index === 0) return;
-                    const newOrder = [...tempOrder];
-                    [newOrder[index - 1], newOrder[index]] = [newOrder[index], newOrder[index - 1]];
-                    setTempOrder(newOrder);
-                  };
-
-                  const moveDown = (index: number) => {
-                    if (index === tempOrder.length - 1) return;
-                    const newOrder = [...tempOrder];
-                    [newOrder[index], newOrder[index + 1]] = [newOrder[index + 1], newOrder[index]];
-                    setTempOrder(newOrder);
-                  };
-
-                  const handleSave = () => {
-                    saveAgencyOrder(tempOrder);
-                    setShowAgencyOrderModal(false);
-                  };
-
-                  return (
-                    <>
-                      {tempOrder.map((agencyName, index) => (
-                        <div key={agencyName} className="agency-order-item">
-                          <span className="agency-order-name">{agencyName}</span>
-                          <div className="agency-order-buttons">
-                            <button
-                              onClick={() => moveUp(index)}
-                              disabled={index === 0}
-                              className="btn-order-move"
-                              title="上に移動"
-                            >
-                              ↑
-                            </button>
-                            <button
-                              onClick={() => moveDown(index)}
-                              disabled={index === tempOrder.length - 1}
-                              className="btn-order-move"
-                              title="下に移動"
-                            >
-                              ↓
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                      <div className="agency-order-actions">
-                        <button onClick={handleSave} className="btn-save-order">
-                          保存
-                        </button>
-                        <button onClick={() => setShowAgencyOrderModal(false)} className="btn-cancel-order">
-                          キャンセル
-                        </button>
-                      </div>
-                    </>
-                  );
-                })()}
+                {tempOrder.map((agencyName, index) => (
+                  <div key={agencyName} className="agency-order-item">
+                    <span className="agency-order-name">{agencyName}</span>
+                    <div className="agency-order-buttons">
+                      <button
+                        onClick={() => moveAgencyUp(index)}
+                        disabled={index === 0}
+                        className="btn-order-move"
+                        title="上に移動"
+                      >
+                        ↑
+                      </button>
+                      <button
+                        onClick={() => moveAgencyDown(index)}
+                        disabled={index === tempOrder.length - 1}
+                        className="btn-order-move"
+                        title="下に移動"
+                      >
+                        ↓
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                <div className="agency-order-actions">
+                  <button onClick={handleSaveAgencyOrder} className="btn-save-order">
+                    保存
+                  </button>
+                  <button onClick={() => setShowAgencyOrderModal(false)} className="btn-cancel-order">
+                    キャンセル
+                  </button>
+                </div>
               </div>
             </div>
           </div>
