@@ -1401,21 +1401,20 @@
    Notion風ライトモード専用スタイル
    ======================== */
 
-/* ライトモード時のカード - 繊細な影 */
+/* ライトモード時のカード - 繊細な影（輪郭なし） */
 [data-theme="light"] .card {
-  box-shadow: rgba(15, 15, 15, 0.1) 0px 0px 0px 1px,
-              rgba(15, 15, 15, 0.1) 0px 2px 4px;
+  box-shadow: rgba(15, 15, 15, 0.1) 0px 2px 4px;
 }
 
-/* ライトモード時のアイコン - ブラウン系 */
+/* ライトモード時のアイコン - ブルーグレー系 */
 [data-theme="light"] .theme-toggle-icon,
 [data-theme="light"] .audio-icon {
-  color: #9F6B53; /* Notion風ウォームブラウン */
+  color: #64748B; /* Slate-500 (ブルーグレー) */
 }
 
 /* ライトモード時のホバー背景 */
 [data-theme="light"] .icon-button:hover {
-  background-color: rgba(159, 107, 83, 0.08);
+  background-color: rgba(100, 116, 139, 0.08);
 }
 
 /* ライトモード時のギャラリーカード - 繊細な影 */
@@ -1444,28 +1443,28 @@
 
 /* 「一覧を見る」ボタン */
 [data-theme="light"] .btn-vocab-list {
-  background: rgba(159, 107, 83, 0.08);
+  background: rgba(100, 116, 139, 0.08);
 }
 
 [data-theme="light"] .btn-vocab-list:hover {
-  background: #9F6B53;
+  background: #64748B;
   color: white;
 }
 
 /* 全動画カードの一覧ボタン */
 [data-theme="light"] .video-card-all .btn-vocab-list:hover {
   background: rgba(255, 255, 255, 0.9);
-  color: #9F6B53;
+  color: #64748B;
 }
 
 /* フィルターボタン */
 [data-theme="light"] .filter-button.active {
-  box-shadow: 0 2px 8px rgba(159, 107, 83, 0.2);
+  box-shadow: 0 2px 8px rgba(100, 116, 139, 0.2);
 }
 
 [data-theme="light"] .filter-button:hover {
-  background: #8B6F47;
-  border-color: #8B6F47;
+  background: #475569;
+  border-color: #475569;
 }
 
 /* 動画カードホバー */
@@ -1482,35 +1481,35 @@
 
 /* 戻るボタンホバー */
 [data-theme="light"] .back-button:hover {
-  background: rgba(159, 107, 83, 0.08);
+  background: rgba(100, 116, 139, 0.08);
 }
 
 /* ヘルプモーダルボタンホバー */
 [data-theme="light"] .help-modal-button:hover {
-  background: #8B6F47;
+  background: #475569;
 }
 
 /* インストールバナーアイコン */
 [data-theme="light"] .install-banner-icon {
-  background: linear-gradient(135deg, #9F6B53 0%, #8B6F47 100%);
+  background: linear-gradient(135deg, #64748B 0%, #475569 100%);
 }
 
 /* 語彙テーブル行ホバー */
 [data-theme="light"] .vocab-list-table tbody tr:hover {
-  background: rgba(159, 107, 83, 0.03);
+  background: rgba(100, 116, 139, 0.03);
 }
 
 /* アイコンボタンホバー（既存のオーバーライド強化） */
 [data-theme="light"] .icon-button:hover {
-  background-color: rgba(159, 107, 83, 0.08);
+  background-color: rgba(100, 116, 139, 0.08);
 }
 
-/* 全動画カード - ブラウングラデーション */
+/* 全動画カード - ブルーグレーグラデーション */
 [data-theme="light"] .video-card-all {
-  background: linear-gradient(135deg, #9F6B53 0%, #8B6F47 100%);
+  background: linear-gradient(135deg, #64748B 0%, #475569 100%);
 }
 
-/* インストールバナー - ブラウングラデーション */
+/* インストールバナー - ブルーグレーグラデーション */
 [data-theme="light"] .install-banner {
-  background: linear-gradient(135deg, #9F6B53 0%, #8B6F47 100%);
+  background: linear-gradient(135deg, #64748B 0%, #475569 100%);
 }

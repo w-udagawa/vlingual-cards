@@ -45,13 +45,13 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* ライトモード（Notion風） */
+/* ライトモード（ブルーグレー風） */
 [data-theme="light"] {
   /* カラーパレット */
-  --primary: #9F6B53; /* Notion風ウォームブラウン */
+  --primary: #64748B; /* Slate-500 (Tailwind風ブルーグレー) */
   --background: #FFFFFF; /* 真っ白 */
   --card-bg: #FFFFFF; /* カードも白（影で浮かせる） */
-  --border: #E9E9E7; /* Notion風の極薄ベージュグレー */
+  --border: #E5E7EB; /* 極薄グレー */
 
   /* 難易度バッジ（Notion風ソフトトーン） */
   --level-beginner: #51CF66; /* Notion Green */
