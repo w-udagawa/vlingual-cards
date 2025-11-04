@@ -152,3 +152,4 @@ export const DEFAULT_CSV_URL = "/vocab.csv";
 // localStorage キー
 export const AUDIO_ENABLED_KEY = "audio_enabled";
 export const THEME_PREFERENCE_KEY = "theme_preference";
+export const AGENCY_ORDER_KEY = "agency_order";

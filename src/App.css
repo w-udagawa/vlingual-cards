@@ -1527,3 +1527,253 @@
 [data-theme="light"] .install-banner {
   background: linear-gradient(135deg, #64748B 0%, #475569 100%);
 }
+
+/* =====================================
+   ギャラリーヘッダー（並び順ボタン付き）
+   ===================================== */
+
+.gallery-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.gallery-header .gallery-title {
+  margin: 0;
+  flex: 1;
+}
+
+.btn-agency-order {
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+  background: var(--primary);
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.btn-agency-order:hover {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+}
+
+.btn-agency-order:active {
+  transform: translateY(0);
+}
+
+/* =====================================
+   並び順変更モーダル
+   ===================================== */
+
+.agency-order-modal {
+  max-width: 500px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.agency-order-description {
+  color: var(--text-secondary);
+  margin-bottom: 20px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.agency-order-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.agency-order-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--card-bg);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  transition: all 0.2s;
+}
+
+.agency-order-item:hover {
+  border-color: var(--primary);
+}
+
+.agency-order-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.agency-order-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-order-move {
+  width: 36px;
+  height: 36px;
+  font-size: 18px;
+  color: white;
+  background: var(--primary);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-order-move:hover:not(:disabled) {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+}
+
+.btn-order-move:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-order-move:disabled {
+  background: var(--border);
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.agency-order-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 2px solid var(--border);
+}
+
+.btn-save-order,
+.btn-cancel-order {
+  flex: 1;
+  padding: 14px 24px;
+  font-size: 16px;
+  font-weight: 600;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-save-order {
+  color: white;
+  background: var(--primary);
+}
+
+.btn-save-order:hover {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+}
+
+.btn-cancel-order {
+  color: var(--text-primary);
+  background: var(--border);
+}
+
+.btn-cancel-order:hover {
+  background: var(--card-bg);
+  transform: translateY(-1px);
+}
+
+/* ライトモード対応 */
+[data-theme="light"] .btn-agency-order {
+  background: #64748B;
+}
+
+[data-theme="light"] .btn-agency-order:hover {
+  background: #475569;
+}
+
+[data-theme="light"] .agency-order-item {
+  background: white;
+  border-color: #E2E8F0;
+}
+
+[data-theme="light"] .agency-order-item:hover {
+  border-color: #64748B;
+}
+
+[data-theme="light"] .btn-order-move {
+  background: #64748B;
+}
+
+[data-theme="light"] .btn-order-move:hover:not(:disabled) {
+  background: #475569;
+}
+
+[data-theme="light"] .btn-order-move:disabled {
+  background: #E2E8F0;
+  color: #94A3B8;
+}
+
+[data-theme="light"] .btn-save-order {
+  background: #64748B;
+}
+
+[data-theme="light"] .btn-save-order:hover {
+  background: #475569;
+}
+
+[data-theme="light"] .btn-cancel-order {
+  background: #E2E8F0;
+  color: #334155;
+}
+
+[data-theme="light"] .btn-cancel-order:hover {
+  background: #CBD5E1;
+}
+
+/* モバイル対応 */
+@media (max-width: 768px) {
+  .gallery-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .btn-agency-order {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .agency-order-modal {
+    max-width: 95vw;
+  }
+
+  .agency-order-item {
+    padding: 10px 12px;
+  }
+
+  .agency-order-name {
+    font-size: 14px;
+  }
+
+  .btn-order-move {
+    width: 32px;
+    height: 32px;
+    font-size: 16px;
+  }
+
+  .agency-order-actions {
+    flex-direction: column;
+  }
+
+  .btn-save-order,
+  .btn-cancel-order {
+    width: 100%;
+  }
+}

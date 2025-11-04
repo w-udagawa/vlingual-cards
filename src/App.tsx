@@ -5,7 +5,8 @@ import {
   SAMPLE_DATA,
   DEFAULT_CSV_URL,
   AUDIO_ENABLED_KEY,
-  THEME_PREFERENCE_KEY
+  THEME_PREFERENCE_KEY,
+  AGENCY_ORDER_KEY
 } from './types';
 
 // YouTube動画IDを抽出
@@ -125,6 +126,8 @@ function App() {
   const [isTransitioning, setIsTransitioning] = useState(false); // カード切り替え中かどうか
   const [showVocabList, setShowVocabList] = useState(false); // 語彙一覧モーダルの表示状態
   const [vocabListSource, setVocabListSource] = useState<VideoGroup | null>(null); // 一覧表示する動画
+  const [agencyOrder, setAgencyOrder] = useState<string[]>([]); // 事務所の並び順
+  const [showAgencyOrderModal, setShowAgencyOrderModal] = useState(false); // 並び順変更モーダルの表示状態
 
   // CSV解析関数
   const parseCSV = (csvText: string): VocabCard[] => {
@@ -377,6 +380,27 @@ function App() {
     }
   };
 
+  // 事務所の並び順を読み込み
+  const loadAgencyOrder = () => {
+    const savedOrder = localStorage.getItem(AGENCY_ORDER_KEY);
+    if (savedOrder) {
+      try {
+        const parsed = JSON.parse(savedOrder);
+        if (Array.isArray(parsed)) {
+          setAgencyOrder(parsed);
+        }
+      } catch (e) {
+        console.error('Failed to parse agency order:', e);
+      }
+    }
+  };
+
+  // 事務所の並び順を保存
+  const saveAgencyOrder = (order: string[]) => {
+    setAgencyOrder(order);
+    localStorage.setItem(AGENCY_ORDER_KEY, JSON.stringify(order));
+  };
+
   // シンプルなカード選択（「余裕」以外からランダム）
   const selectNextCard = (allCards: VocabCard[], currentMastered: Set<string> = mastered): VocabCard | null => {
     // 「余裕」にしていないカードをフィルター
@@ -612,6 +636,7 @@ function App() {
   useEffect(() => {
     loadAudioSetting();
     loadThemeSetting();
+    loadAgencyOrder();
     loadCSV();
 
     // PWAインストールバナー表示（初回アクセス時のみ）
@@ -779,6 +804,17 @@ function App() {
       agencies.get(agencyName)!.push(cast);
     });
 
+    // 事務所の並び順を決定（ユーザー設定 → デフォルト順）
+    const agencyNames = Array.from(agencies.keys());
+    const sortedAgencies = agencyOrder.length > 0
+      ? [
+          // ユーザー設定の順序で並べる
+          ...agencyOrder.filter(name => agencies.has(name)),
+          // 設定にない事務所はアルファベット順で最後に追加
+          ...agencyNames.filter(name => !agencyOrder.includes(name)).sort((a, b) => a.localeCompare(b, 'ja'))
+        ]
+      : agencyNames.sort((a, b) => a.localeCompare(b, 'ja')); // デフォルトはアルファベット順
+
     return (
       <div className="app">
         {/* ヘッダー */}
@@ -804,14 +840,25 @@ function App() {
 
         {/* キャスト一覧コンテンツ */}
         <main className="gallery-container">
-          <h2 className="gallery-title">🎤 キャストを選択してください</h2>
+          <div className="gallery-header">
+            <h2 className="gallery-title">🎤 キャストを選択してください</h2>
+            <button
+              onClick={() => setShowAgencyOrderModal(true)}
+              className="btn-agency-order"
+              title="事務所の並び順を変更"
+            >
+              ⚙️ 並び順
+            </button>
+          </div>
 
           {/* 事務所ごとにセクション分け */}
-          {Array.from(agencies.entries()).map(([agencyName, casts]) => (
-            <div key={agencyName} className="agency-section">
-              <h3 className="agency-name">{agencyName}</h3>
-              <div className="video-grid">
-                {casts.map(cast => (
+          {sortedAgencies.map((agencyName) => {
+            const casts = agencies.get(agencyName)!;
+            return (
+              <div key={agencyName} className="agency-section">
+                <h3 className="agency-name">{agencyName}</h3>
+                <div className="video-grid">
+                  {casts.map(cast => (
                   <div
                     key={cast.id}
                     className="video-card"
@@ -830,10 +877,11 @@ function App() {
                       </p>
                     </div>
                   </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {/* 全ての動画カード */}
           {allCasts.length > 1 && (
@@ -852,6 +900,92 @@ function App() {
             </div>
           )}
         </main>
+
+        {/* 並び順変更モーダル */}
+        {showAgencyOrderModal && (
+          <div className="help-modal-overlay" onClick={() => setShowAgencyOrderModal(false)}>
+            <div className="help-modal-content agency-order-modal" onClick={(e) => e.stopPropagation()}>
+              <button className="help-modal-close" onClick={() => setShowAgencyOrderModal(false)}>
+                ×
+              </button>
+              <h2>⚙️ 事務所の並び順</h2>
+              <p className="agency-order-description">
+                事務所の表示順を変更できます。「↑」「↓」ボタンで並び替えてください。
+              </p>
+
+              <div className="agency-order-list">
+                {(() => {
+                  // 現在の並び順を取得（stateまたはデフォルト）
+                  const currentOrder = agencyOrder.length > 0
+                    ? agencyOrder.filter(name => agencies.has(name))
+                    : Array.from(agencies.keys()).sort((a, b) => a.localeCompare(b, 'ja'));
+
+                  // 設定にない事務所を追加
+                  const allAgencyNames = Array.from(agencies.keys());
+                  const missingAgencies = allAgencyNames.filter(name => !currentOrder.includes(name));
+                  const fullOrder = [...currentOrder, ...missingAgencies.sort((a, b) => a.localeCompare(b, 'ja'))];
+
+                  const [tempOrder, setTempOrder] = useState(fullOrder);
+
+                  const moveUp = (index: number) => {
+                    if (index === 0) return;
+                    const newOrder = [...tempOrder];
+                    [newOrder[index - 1], newOrder[index]] = [newOrder[index], newOrder[index - 1]];
+                    setTempOrder(newOrder);
+                  };
+
+                  const moveDown = (index: number) => {
+                    if (index === tempOrder.length - 1) return;
+                    const newOrder = [...tempOrder];
+                    [newOrder[index], newOrder[index + 1]] = [newOrder[index + 1], newOrder[index]];
+                    setTempOrder(newOrder);
+                  };
+
+                  const handleSave = () => {
+                    saveAgencyOrder(tempOrder);
+                    setShowAgencyOrderModal(false);
+                  };
+
+                  return (
+                    <>
+                      {tempOrder.map((agencyName, index) => (
+                        <div key={agencyName} className="agency-order-item">
+                          <span className="agency-order-name">{agencyName}</span>
+                          <div className="agency-order-buttons">
+                            <button
+                              onClick={() => moveUp(index)}
+                              disabled={index === 0}
+                              className="btn-order-move"
+                              title="上に移動"
+                            >
+                              ↑
+                            </button>
+                            <button
+                              onClick={() => moveDown(index)}
+                              disabled={index === tempOrder.length - 1}
+                              className="btn-order-move"
+                              title="下に移動"
+                            >
+                              ↓
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      <div className="agency-order-actions">
+                        <button onClick={handleSave} className="btn-save-order">
+                          保存
+                        </button>
+                        <button onClick={() => setShowAgencyOrderModal(false)} className="btn-cancel-order">
+                          キャンセル
+                        </button>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ヘルプモーダル */}
         {showHelp && (
@@ -953,8 +1087,6 @@ function App() {
 
         {/* ギャラリーコンテンツ */}
         <main className="gallery-container">
-          <h2 className="gallery-title">📚 動画を選択してください</h2>
-
           <div className="video-grid">
             {allVideos.map(video => (
               <div
