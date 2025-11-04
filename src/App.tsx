@@ -137,17 +137,22 @@ function App() {
     const expectedHeaders6 = ['単語', '和訳', '難易度', '品詞', '文脈', '動画URL'];
     const expectedHeaders7New = ['単語', '和訳', '文脈', '難易度', '品詞', '動画URL', '動画タイトル']; // 新形式
     const expectedHeaders7Old = ['単語', '和訳', '難易度', '品詞', '文脈', '動画URL', '動画タイトル']; // 旧形式
-    const expectedHeaders9New = ['単語', '和訳', '文脈', '難易度', '品詞', '動画URL', '動画タイトル', '事務所', 'キャスト名']; // 9列形式（キャスト対応）
+    const expectedHeaders9New = ['単語', '和訳', '文脈', '難易度', '品詞', '動画URL', '動画タイトル', '事務所', 'キャスト名']; // 9列形式（新・キャスト対応）
+    const expectedHeaders9Old = ['単語', '和訳', '難易度', '品詞', '文脈', '動画URL', '動画タイトル', '事務所', 'タレント']; // 9列形式（旧・キャスト対応）
+    const expectedHeaders9OldAlt = ['単語', '和訳', '難易度', '品詞', '文脈', '動画URL', '動画タイトル', '事務所', 'キャスト名']; // 9列形式（旧・キャスト名表記）
 
     // ヘッダー検証（6列、7列、9列に対応）
     const isValid6 = JSON.stringify(headers) === JSON.stringify(expectedHeaders6);
     const isValid7New = JSON.stringify(headers) === JSON.stringify(expectedHeaders7New);
     const isValid7Old = JSON.stringify(headers) === JSON.stringify(expectedHeaders7Old);
     const isValid9New = JSON.stringify(headers) === JSON.stringify(expectedHeaders9New);
+    const isValid9Old = JSON.stringify(headers) === JSON.stringify(expectedHeaders9Old);
+    const isValid9OldAlt = JSON.stringify(headers) === JSON.stringify(expectedHeaders9OldAlt);
     const isNew7Format = isValid7New; // 新7列形式かどうか
     const isNew9Format = isValid9New; // 新9列形式かどうか
+    const isOld9Format = isValid9Old || isValid9OldAlt; // 旧9列形式かどうか
 
-    if (!isValid6 && !isValid7New && !isValid7Old && !isValid9New) {
+    if (!isValid6 && !isValid7New && !isValid7Old && !isValid9New && !isValid9Old && !isValid9OldAlt) {
       throw new Error(`列名が想定と異なります（実際: ${headers.join(',')}）`);
     }
 
@@ -190,11 +195,14 @@ function App() {
       if (isNew9Format) {
         // 新9列形式: 単語,和訳,文脈,難易度,品詞,動画URL,動画タイトル,事務所,キャスト名
         [単語, 和訳, 文脈, 難易度, 品詞, 動画URL, 動画タイトル, 事務所, キャスト名] = values;
+      } else if (isOld9Format) {
+        // 旧9列形式: 単語,和訳,難易度,品詞,文脈,動画URL,動画タイトル,事務所,タレント（またはキャスト名）
+        [単語, 和訳, 難易度, 品詞, 文脈, 動画URL, 動画タイトル, 事務所, キャスト名] = values;
       } else if (isNew7Format) {
         // 新7列形式: 単語,和訳,文脈,難易度,品詞,動画URL,動画タイトル
         [単語, 和訳, 文脈, 難易度, 品詞, 動画URL, 動画タイトル] = values;
       } else {
-        // 旧形式: 単語,和訳,難易度,品詞,文脈,動画URL,[動画タイトル]
+        // 旧6/7列形式: 単語,和訳,難易度,品詞,文脈,動画URL,[動画タイトル]
         [単語, 和訳, 難易度, 品詞, 文脈, 動画URL, 動画タイトル] = values;
       }
 
