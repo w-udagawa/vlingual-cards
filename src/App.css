@@ -468,6 +468,19 @@
     padding: 12px;
   }
 
+  .header-right {
+    gap: 8px;
+  }
+
+  .icon-button {
+    font-size: 20px;
+    padding: 2px;
+  }
+
+  .today-count {
+    font-size: 12px;
+  }
+
   .card {
     height: 280px;
   }
@@ -498,6 +511,19 @@
 }
 
 @media (max-width: 480px) {
+  .header-right {
+    gap: 4px;
+  }
+
+  .icon-button {
+    font-size: 18px;
+    padding: 2px;
+  }
+
+  .today-count {
+    font-size: 11px;
+  }
+
   .app-name {
     font-size: 16px;
   }
