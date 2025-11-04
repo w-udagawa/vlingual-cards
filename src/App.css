@@ -537,6 +537,20 @@
   margin-bottom: 32px;
 }
 
+/* 事務所セクション */
+.agency-section {
+  margin-bottom: 40px;
+}
+
+.agency-name {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid rgba(168, 85, 247, 0.2);
+}
+
 .video-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import './App.css';
-import type { VocabCard, VideoGroup } from './types';
+import type { VocabCard, VideoGroup, CastGroup } from './types';
 import {
   SAMPLE_DATA,
   DEFAULT_CSV_URL,
@@ -107,9 +107,11 @@ function AudioIcon({ enabled }: { enabled: boolean }) {
 
 function App() {
   // 状態管理
-  const [screen, setScreen] = useState<'gallery' | 'study'>('gallery');
-  const [allVideos, setAllVideos] = useState<VideoGroup[]>([]);
-  const [selectedVideo, setSelectedVideo] = useState<VideoGroup | null>(null);
+  const [screen, setScreen] = useState<'cast-list' | 'video-list' | 'study'>('cast-list');
+  const [allCasts, setAllCasts] = useState<CastGroup[]>([]); // キャスト一覧
+  const [allVideos, setAllVideos] = useState<VideoGroup[]>([]); // 選択されたキャストの動画一覧
+  const [selectedCast, setSelectedCast] = useState<CastGroup | null>(null); // 選択されたキャスト
+  const [selectedVideo, setSelectedVideo] = useState<VideoGroup | null>(null); // 選択された動画
   const [cards, setCards] = useState<VocabCard[]>([]);
   const [currentCard, setCurrentCard] = useState<VocabCard | null>(null);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -135,14 +137,17 @@ function App() {
     const expectedHeaders6 = ['単語', '和訳', '難易度', '品詞', '文脈', '動画URL'];
     const expectedHeaders7New = ['単語', '和訳', '文脈', '難易度', '品詞', '動画URL', '動画タイトル']; // 新形式
     const expectedHeaders7Old = ['単語', '和訳', '難易度', '品詞', '文脈', '動画URL', '動画タイトル']; // 旧形式
+    const expectedHeaders9New = ['単語', '和訳', '文脈', '難易度', '品詞', '動画URL', '動画タイトル', '事務所', 'キャスト名']; // 9列形式（キャスト対応）
 
-    // ヘッダー検証（6列または7列に対応、列順2パターン）
+    // ヘッダー検証（6列、7列、9列に対応）
     const isValid6 = JSON.stringify(headers) === JSON.stringify(expectedHeaders6);
     const isValid7New = JSON.stringify(headers) === JSON.stringify(expectedHeaders7New);
     const isValid7Old = JSON.stringify(headers) === JSON.stringify(expectedHeaders7Old);
-    const isNew7Format = isValid7New; // 新形式かどうかのフラグ
+    const isValid9New = JSON.stringify(headers) === JSON.stringify(expectedHeaders9New);
+    const isNew7Format = isValid7New; // 新7列形式かどうか
+    const isNew9Format = isValid9New; // 新9列形式かどうか
 
-    if (!isValid6 && !isValid7New && !isValid7Old) {
+    if (!isValid6 && !isValid7New && !isValid7Old && !isValid9New) {
       throw new Error(`列名が想定と異なります（実際: ${headers.join(',')}）`);
     }
 
@@ -174,16 +179,19 @@ function App() {
       }
       values.push(current.trim());
 
-      if (values.length !== 6 && values.length !== 7) {
-        console.warn(`行 ${i + 1} をスキップ: 列数が不正です（期待: 6または7列、実際: ${values.length}列）`);
+      if (values.length !== 6 && values.length !== 7 && values.length !== 9) {
+        console.warn(`行 ${i + 1} をスキップ: 列数が不正です（期待: 6, 7, または9列、実際: ${values.length}列）`);
         continue;
       }
 
       // 列順に応じて値を割り当て
-      let 単語, 和訳, 難易度, 品詞, 文脈, 動画URL, 動画タイトル;
+      let 単語, 和訳, 難易度, 品詞, 文脈, 動画URL, 動画タイトル, 事務所, キャスト名;
 
-      if (isNew7Format) {
-        // 新形式: 単語,和訳,文脈,難易度,品詞,動画URL,動画タイトル
+      if (isNew9Format) {
+        // 新9列形式: 単語,和訳,文脈,難易度,品詞,動画URL,動画タイトル,事務所,キャスト名
+        [単語, 和訳, 文脈, 難易度, 品詞, 動画URL, 動画タイトル, 事務所, キャスト名] = values;
+      } else if (isNew7Format) {
+        // 新7列形式: 単語,和訳,文脈,難易度,品詞,動画URL,動画タイトル
         [単語, 和訳, 文脈, 難易度, 品詞, 動画URL, 動画タイトル] = values;
       } else {
         // 旧形式: 単語,和訳,難易度,品詞,文脈,動画URL,[動画タイトル]
@@ -202,7 +210,9 @@ function App() {
         品詞,
         文脈,
         動画URL,
-        動画タイトル: 動画タイトル || undefined  // 7列目がない場合はundefined
+        動画タイトル: 動画タイトル || undefined,  // 7列目がない場合はundefined
+        事務所: 事務所 || undefined,             // 8列目（9列形式のみ）
+        キャスト名: キャスト名 || undefined       // 9列目（9列形式のみ）
       });
     }
 
@@ -243,6 +253,51 @@ function App() {
     return Array.from(grouped.values());
   };
 
+  // キャスト名をURL用スラッグに変換
+  const createCastSlug = (castName: string): string => {
+    // URL安全な文字列に変換（日本語対応）
+    return encodeURIComponent(castName);
+  };
+
+  // キャストごとにカードをグループ化
+  const groupCardsByCast = (cards: VocabCard[]): CastGroup[] => {
+    // まず動画ごとにグループ化
+    const videoGroups = groupCardsByVideo(cards);
+
+    // キャストごとに動画をグループ化
+    const castMap = new Map<string, CastGroup>();
+
+    videoGroups.forEach(videoGroup => {
+      // この動画の最初のカードからキャスト情報を取得
+      const firstCard = videoGroup.cards[0];
+      const castName = firstCard?.キャスト名 || '未分類';
+      const agency = firstCard?.事務所;
+      const castId = createCastSlug(castName);
+
+      if (!castMap.has(castId)) {
+        castMap.set(castId, {
+          id: castId,
+          name: castName,
+          agency: agency,
+          videos: [],
+          wordCount: 0,
+          thumbnailUrl: videoGroup.thumbnailUrl // 最初の動画のサムネイル
+        });
+      }
+
+      const castGroup = castMap.get(castId)!;
+      castGroup.videos.push(videoGroup);
+      castGroup.wordCount += videoGroup.wordCount;
+    });
+
+    // 事務所でソート（事務所名の昇順、未分類は最後）
+    return Array.from(castMap.values()).sort((a, b) => {
+      const agencyA = a.agency || 'ZZZZ未分類'; // 未分類を最後に
+      const agencyB = b.agency || 'ZZZZ未分類';
+      return agencyA.localeCompare(agencyB, 'ja');
+    });
+  };
+
   // CSV読み込み
   const loadCSV = async () => {
     const timestamp = new Date().toISOString();
@@ -265,16 +320,17 @@ function App() {
       const text = await response.text();
       const parsedCards = parseCSV(text);
 
-      // 動画URLごとにグループ化
-      const videoGroups = groupCardsByVideo(parsedCards);
-      setAllVideos(videoGroups);
+      // キャストごとにグループ化（内部で動画ごとにもグループ化される）
+      const castGroups = groupCardsByCast(parsedCards);
+      setAllCasts(castGroups);
       setCards(parsedCards);
 
       console.log('[CSV_LOAD]', {
         operation: 'loadCSV',
         status: 'success',
         cardCount: parsedCards.length,
-        videoCount: videoGroups.length,
+        castCount: castGroups.length,
+        videoCount: castGroups.reduce((sum, cast) => sum + cast.videos.length, 0),
         timestamp: new Date().toISOString()
       });
     } catch (err) {
@@ -435,6 +491,15 @@ function App() {
     }
   };
 
+  // キャスト選択
+  const handleSelectCast = (cast: CastGroup) => {
+    setSelectedCast(cast);
+    setAllVideos(cast.videos); // 選択されたキャストの動画一覧を設定
+    setScreen('video-list');
+    // URLパラメータを更新
+    window.history.pushState({}, '', `?cast=${cast.id}`);
+  };
+
   // 動画選択
   const handleSelectVideo = (video: VideoGroup) => {
     setSelectedVideo(video);
@@ -443,10 +508,24 @@ function App() {
     setIsFlipped(false);
     setCurrentCard(null);
     setMastered(new Set()); // セッションリセット
+    // URLパラメータを更新
+    window.history.pushState({}, '', `?video=${video.id}`);
   };
 
-  // 全ての動画を学習
-  const handleSelectAll = () => {
+  // 全ての動画を学習（キャスト一覧から）
+  const handleSelectAllCasts = () => {
+    setSelectedCast(null);
+    setSelectedVideo(null);
+    const allCards = allCasts.flatMap(cast => cast.videos.flatMap(v => v.cards));
+    setCards(allCards);
+    setScreen('study');
+    setIsFlipped(false);
+    setCurrentCard(null);
+    setMastered(new Set()); // セッションリセット
+  };
+
+  // 全ての動画を学習（動画一覧から、キャスト内）
+  const handleSelectAllVideos = () => {
     setSelectedVideo(null);
     setCards(allVideos.flatMap(v => v.cards));
     setScreen('study');
@@ -455,12 +534,28 @@ function App() {
     setMastered(new Set()); // セッションリセット
   };
 
-  // ギャラリーに戻る
-  const handleBackToGallery = () => {
-    setScreen('gallery');
+  // キャスト一覧に戻る
+  const handleBackToCastList = () => {
+    setScreen('cast-list');
+    setSelectedCast(null);
+    setSelectedVideo(null);
+    setAllVideos([]);
+    setCurrentCard(null);
+    setIsFlipped(false);
+    // URLパラメータをクリア
+    window.history.pushState({}, '', window.location.pathname);
+  };
+
+  // 動画一覧に戻る
+  const handleBackToVideoList = () => {
+    setScreen('video-list');
     setSelectedVideo(null);
     setCurrentCard(null);
     setIsFlipped(false);
+    // URLパラメータを更新（castのみ残す）
+    if (selectedCast) {
+      window.history.pushState({}, '', `?cast=${selectedCast.id}`);
+    }
   };
 
   // インストールバナーを閉じる
@@ -517,6 +612,51 @@ function App() {
       setTimeout(() => setShowInstallBanner(true), 3000);
     }
   }, []);
+
+  // URLパラメータ処理（キャスト・動画の直接アクセス）
+  useEffect(() => {
+    if (allCasts.length === 0) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const castParam = params.get('cast');
+    const videoParam = params.get('video');
+
+    if (castParam) {
+      // ?cast=xxx でキャスト選択
+      const cast = allCasts.find(c => c.id === castParam);
+      if (cast) {
+        handleSelectCast(cast);
+      }
+    } else if (videoParam) {
+      // ?video=xxx で動画選択
+      const allVideos = allCasts.flatMap(c => c.videos);
+      const video = allVideos.find(v => v.id === videoParam);
+      if (video) {
+        handleSelectVideo(video);
+      }
+    }
+
+    // popstateイベント（戻る/進むボタン）のリスナー
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const castParam = params.get('cast');
+      const videoParam = params.get('video');
+
+      if (!castParam && !videoParam) {
+        // パラメータなし → キャスト一覧に戻る
+        handleBackToCastList();
+      } else if (castParam && !videoParam) {
+        // cast のみ → 動画一覧に戻る
+        const cast = allCasts.find(c => c.id === castParam);
+        if (cast) {
+          handleSelectCast(cast);
+        }
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [allCasts]);
 
   // カードが読み込まれたら最初のカードを選択
   useEffect(() => {
@@ -617,9 +757,20 @@ function App() {
     );
   }
 
-  // ギャラリー画面
-  if (screen === 'gallery' && allVideos.length > 0) {
-    const totalWords = allVideos.reduce((sum, v) => sum + v.wordCount, 0);
+  // キャスト一覧画面
+  if (screen === 'cast-list' && allCasts.length > 0) {
+    const totalWords = allCasts.reduce((sum, cast) => sum + cast.wordCount, 0);
+
+    // 事務所ごとにグループ化
+    const agencies = new Map<string, CastGroup[]>();
+    allCasts.forEach(cast => {
+      const agencyName = cast.agency || '未分類';
+      if (!agencies.has(agencyName)) {
+        agencies.set(agencyName, []);
+      }
+      agencies.get(agencyName)!.push(cast);
+    });
+
     return (
       <div className="app">
         {/* ヘッダー */}
@@ -627,6 +778,155 @@ function App() {
           <div className="header-left">
             <img src="/channel-logo.jpg" alt="Vlingual Channel" className="logo" />
             <h1 className="app-name">Vlingual Cards</h1>
+          </div>
+          <div className="header-right">
+            {'speechSynthesis' in window && (
+              <button onClick={toggleAudio} className="icon-button" title="音声読み上げ">
+                <AudioIcon enabled={audioEnabled} />
+              </button>
+            )}
+            <button onClick={toggleTheme} className="icon-button" title="テーマ切り替え">
+              <ThemeToggleIcon theme={theme} />
+            </button>
+            <button onClick={() => setShowHelp(true)} className="icon-button" title="使い方">
+              ?
+            </button>
+          </div>
+        </header>
+
+        {/* キャスト一覧コンテンツ */}
+        <main className="gallery-container">
+          <h2 className="gallery-title">🎤 キャストを選択してください</h2>
+
+          {/* 事務所ごとにセクション分け */}
+          {Array.from(agencies.entries()).map(([agencyName, casts]) => (
+            <div key={agencyName} className="agency-section">
+              <h3 className="agency-name">{agencyName}</h3>
+              <div className="video-grid">
+                {casts.map(cast => (
+                  <div
+                    key={cast.id}
+                    className="video-card"
+                    onClick={() => handleSelectCast(cast)}
+                  >
+                    <img
+                      src={cast.thumbnailUrl}
+                      alt={cast.name}
+                      className="video-thumbnail"
+                      loading="lazy"
+                    />
+                    <div className="video-info">
+                      <h3 className="video-title">{cast.name}</h3>
+                      <p className="video-word-count">
+                        🎬 {cast.videos.length}本 • 📖 {cast.wordCount}語
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {/* 全ての動画カード */}
+          {allCasts.length > 1 && (
+            <div className="video-grid" style={{ marginTop: '2rem' }}>
+              <div
+                className="video-card video-card-all"
+                onClick={handleSelectAllCasts}
+              >
+                <div className="all-videos-icon">📚</div>
+                <div className="video-info">
+                  <h3 className="video-title">全ての動画</h3>
+                  <p className="video-word-count">📖 {totalWords}語</p>
+                  <p className="all-videos-subtitle">すべて学習</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </main>
+
+        {/* ヘルプモーダル */}
+        {showHelp && (
+          <div className="help-modal-overlay" onClick={() => setShowHelp(false)}>
+            <div className="help-modal-content" onClick={(e) => e.stopPropagation()}>
+              <button className="help-modal-close" onClick={() => setShowHelp(false)}>
+                ×
+              </button>
+              <h2>📖 使い方</h2>
+
+              <section className="help-section">
+                <h3>🎤 キャスト選択</h3>
+                <ol>
+                  <li><strong>キャストを選択</strong>: 好きなVtuberキャストをタップして動画一覧へ</li>
+                  <li><strong>動画を選択</strong>: 学習したい動画をタップ</li>
+                  <li><strong>学習開始</strong>: カードをめくって英単語を学習</li>
+                </ol>
+              </section>
+
+              <section className="help-section">
+                <h3>🎯 基本的な使い方</h3>
+                <ol>
+                  <li><strong>カードをタップ</strong>: 表面（英単語）をタップして裏面（和訳と例文）を確認</li>
+                  <li><strong>3段階で評価</strong>:
+                    <ul>
+                      <li>🔴 <strong>覚えてない</strong>: もう一度このカードが出てきます</li>
+                      <li>🟡 <strong>だいたいOK</strong>: もう一度このカードが出てきます</li>
+                      <li>🟢 <strong>余裕</strong>: このカードは今回の学習ではもう出ません</li>
+                    </ul>
+                  </li>
+                  <li><strong>ゴール</strong>: 全ての単語を「余裕」にすることが目標です！</li>
+                </ol>
+              </section>
+
+              <section className="help-section">
+                <h3>💡 セッション管理</h3>
+                <p><strong>記録は学習中のみ保持されます</strong>：</p>
+                <ul>
+                  <li>✅ 学習中は「余裕」にした単語が記憶されます</li>
+                  <li>🔄 ページを閉じる/リロードすると記録がリセットされます</li>
+                  <li>🎯 <strong>1つの動画を「やり切る」学習スタイル</strong>です</li>
+                </ul>
+              </section>
+
+              <button className="help-modal-button" onClick={() => setShowHelp(false)}>
+                閉じる
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* インストールバナー */}
+        {showInstallBanner && (
+          <div className="install-banner">
+            <div className="install-banner-content">
+              <span className="install-banner-text">
+                📲 ホーム画面に追加してアプリのように使えます！
+              </span>
+              <button onClick={handleDismissInstallBanner} className="install-banner-close">
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // 動画一覧画面
+  if (screen === 'video-list' && allVideos.length > 0) {
+    const totalWords = allVideos.reduce((sum, v) => sum + v.wordCount, 0);
+    return (
+      <div className="app">
+        {/* ヘッダー */}
+        <header className="header">
+          <div className="header-left">
+            {selectedCast && (
+              <button onClick={handleBackToCastList} className="back-button" title="キャスト選択に戻る">
+                ←
+              </button>
+            )}
+            <img src="/channel-logo.jpg" alt="Vlingual Channel" className="logo" />
+            <h1 className="app-name">{selectedCast ? selectedCast.name : 'Vlingual Cards'}</h1>
           </div>
           <div className="header-right">
             {'speechSynthesis' in window && (
@@ -677,7 +977,7 @@ function App() {
             {allVideos.length > 1 && (
               <div
                 className="video-card video-card-all"
-                onClick={handleSelectAll}
+                onClick={handleSelectAllVideos}
               >
                 <div className="all-videos-icon">📚</div>
                 <div className="video-info">
@@ -786,8 +1086,8 @@ function App() {
       {/* ヘッダー */}
       <header className="header">
         <div className="header-left">
-          {allVideos.length > 1 && (
-            <button onClick={handleBackToGallery} className="back-button" title="動画選択に戻る">
+          {selectedCast && (
+            <button onClick={handleBackToVideoList} className="back-button" title="動画選択に戻る">
               ←
             </button>
           )}

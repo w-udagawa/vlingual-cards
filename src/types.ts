@@ -7,6 +7,8 @@ export interface VocabCard {
   文脈: string;
   動画URL: string;
   動画タイトル?: string;  // オプショナル（CSVにない場合も対応）
+  事務所?: string;         // オプショナル（事務所名）
+  キャスト名?: string;     // オプショナル（キャスト名）
 }
 
 // 動画グループ（YouTube動画ごと）
@@ -19,6 +21,16 @@ export interface VideoGroup {
   wordCount: number;       // 語彙数
 }
 
+// キャストグループ（Vtuberキャストごと）
+export interface CastGroup {
+  id: string;              // キャストID（URL用にスラッグ化）
+  name: string;            // キャスト名
+  agency?: string;         // 事務所名
+  videos: VideoGroup[];    // このキャストの動画グループ
+  wordCount: number;       // 総語彙数
+  thumbnailUrl: string;    // 代表サムネイル（最初の動画のサムネイル）
+}
+
 // サンプルデータ（CSV読み込みエラー時のフォールバック用）
 export const SAMPLE_DATA: VocabCard[] = [
   {
@@ -27,7 +39,10 @@ export const SAMPLE_DATA: VocabCard[] = [
     難易度: "中級",
     品詞: "動詞",
     文脈: "I want to accomplish my goals this year. (今年は目標を達成したい)",
-    動画URL: "https://youtube.com/@VlingualChannel"
+    動画URL: "https://youtu.be/dQw4w9WgXcQ",
+    動画タイトル: "英語学習 #1",
+    事務所: "ホロライブ",
+    キャスト名: "がうる・ぐら"
   },
   {
     単語: "resilient",
@@ -35,7 +50,10 @@ export const SAMPLE_DATA: VocabCard[] = [
     難易度: "上級",
     品詞: "形容詞",
     文脈: "She is resilient in the face of challenges. (彼女は困難に直面しても回復力がある)",
-    動画URL: "https://youtube.com/@VlingualChannel"
+    動画URL: "https://youtu.be/dQw4w9WgXcQ",
+    動画タイトル: "英語学習 #1",
+    事務所: "ホロライブ",
+    キャスト名: "がうる・ぐら"
   },
   {
     単語: "embrace",
@@ -43,7 +61,10 @@ export const SAMPLE_DATA: VocabCard[] = [
     難易度: "中級",
     品詞: "動詞",
     文脈: "We should embrace new opportunities. (新しい機会を受け入れるべきだ)",
-    動画URL: "https://youtube.com/@VlingualChannel"
+    動画URL: "https://youtu.be/9bZkp7q19f0",
+    動画タイトル: "英語学習 #2",
+    事務所: "ホロライブ",
+    キャスト名: "がうる・ぐら"
   },
   {
     単語: "profound",
@@ -51,7 +72,10 @@ export const SAMPLE_DATA: VocabCard[] = [
     難易度: "上級",
     品詞: "形容詞",
     文脈: "That book had a profound impact on me. (その本は私に深い影響を与えた)",
-    動画URL: "https://youtube.com/@VlingualChannel"
+    動画URL: "https://youtu.be/oHg5SJYRHA0",
+    動画タイトル: "英語表現レッスン #1",
+    事務所: "ホロライブ",
+    キャスト名: "宝鐘マリン"
   },
   {
     単語: "enhance",
@@ -59,7 +83,10 @@ export const SAMPLE_DATA: VocabCard[] = [
     難易度: "中級",
     品詞: "動詞",
     文脈: "This will enhance your learning experience. (これはあなたの学習体験を向上させる)",
-    動画URL: "https://youtube.com/@VlingualChannel"
+    動画URL: "https://youtu.be/oHg5SJYRHA0",
+    動画タイトル: "英語表現レッスン #1",
+    事務所: "ホロライブ",
+    キャスト名: "宝鐘マリン"
   },
   {
     単語: "thrive",
@@ -67,7 +94,10 @@ export const SAMPLE_DATA: VocabCard[] = [
     難易度: "中級",
     品詞: "動詞",
     文脈: "Plants thrive in sunlight. (植物は日光の中で繁栄する)",
-    動画URL: "https://youtube.com/@VlingualChannel"
+    動画URL: "https://youtu.be/jNQXAC9IVRw",
+    動画タイトル: "英会話レッスン #1",
+    事務所: "にじさんじ",
+    キャスト名: "月ノ美兎"
   },
   {
     単語: "eloquent",
@@ -75,7 +105,10 @@ export const SAMPLE_DATA: VocabCard[] = [
     難易度: "上級",
     品詞: "形容詞",
     文脈: "She gave an eloquent speech. (彼女は雄弁なスピーチをした)",
-    動画URL: "https://youtube.com/@VlingualChannel"
+    動画URL: "https://youtu.be/jNQXAC9IVRw",
+    動画タイトル: "英会話レッスン #1",
+    事務所: "にじさんじ",
+    キャスト名: "月ノ美兎"
   },
   {
     単語: "venture",
@@ -83,7 +116,10 @@ export const SAMPLE_DATA: VocabCard[] = [
     難易度: "中級",
     品詞: "動詞",
     文脈: "Let's venture into new territory. (新しい領域に冒険しよう)",
-    動画URL: "https://youtube.com/@VlingualChannel"
+    動画URL: "https://youtu.be/jNQXAC9IVRw",
+    動画タイトル: "英会話レッスン #1",
+    事務所: "にじさんじ",
+    キャスト名: "月ノ美兎"
   },
   {
     単語: "abundant",
@@ -91,7 +127,10 @@ export const SAMPLE_DATA: VocabCard[] = [
     難易度: "初級",
     品詞: "形容詞",
     文脈: "There are abundant resources available. (利用可能な豊富な資源がある)",
-    動画URL: "https://youtube.com/@VlingualChannel"
+    動画URL: "https://youtu.be/oHg5SJYRHA0",
+    動画タイトル: "英語表現レッスン #1",
+    事務所: "ホロライブ",
+    キャスト名: "宝鐘マリン"
   },
   {
     単語: "cultivate",
@@ -99,7 +138,10 @@ export const SAMPLE_DATA: VocabCard[] = [
     難易度: "中級",
     品詞: "動詞",
     文脈: "We need to cultivate good habits. (良い習慣を育てる必要がある)",
-    動画URL: "https://youtube.com/@VlingualChannel"
+    動画URL: "https://youtu.be/9bZkp7q19f0",
+    動画タイトル: "英語学習 #2",
+    事務所: "ホロライブ",
+    キャスト名: "がうる・ぐら"
   }
 ];
 
