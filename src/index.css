@@ -45,6 +45,42 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* ライトモード（Notion風） */
+[data-theme="light"] {
+  /* カラーパレット */
+  --primary: #9F6B53; /* Notion風ウォームブラウン */
+  --background: #FFFFFF; /* 真っ白 */
+  --card-bg: #FFFFFF; /* カードも白（影で浮かせる） */
+  --border: #E9E9E7; /* Notion風の極薄ベージュグレー */
+
+  /* 難易度バッジ（Notion風ソフトトーン） */
+  --level-beginner: #51CF66; /* Notion Green */
+  --level-intermediate: #F7B955; /* Notion Orange */
+  --level-advanced: #EB5757; /* Notion Red */
+
+  /* 評価ボタン（Notion風極薄背景） */
+  --again-bg: #FFEAEA; /* 極薄赤 */
+  --again-text: #EB5757; /* Notion Red */
+  --again-border: #FFDEDE;
+
+  --ok-bg: #FFF4E6; /* 極薄オレンジ */
+  --ok-text: #F7B955; /* Notion Orange */
+  --ok-border: #FFE8C8;
+
+  --easy-bg: #E8F5E9; /* 極薄グリーン */
+  --easy-text: #51CF66; /* Notion Green */
+  --easy-border: #D0EDD3;
+
+  /* テキスト（Notion標準） */
+  --text-primary: #37352F; /* Notion標準テキスト */
+  --text-secondary: #787774; /* Notionミディアムグレー */
+  --text-muted: #9B9A97; /* Notionライトグレー */
+
+  color-scheme: light;
+  color: var(--text-primary);
+  background-color: var(--background);
+}
+
 * {
   margin: 0;
   padding: 0;

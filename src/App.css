@@ -558,7 +558,6 @@
 .video-card:hover {
   transform: translateY(-4px);
   border-color: var(--primary);
-  box-shadow: 0 8px 16px rgba(168, 85, 247, 0.2);
 }
 
 .video-thumbnail {
@@ -1347,4 +1346,171 @@
     padding: 6px 12px;
     margin-top: 8px;
   }
+}
+
+/* ========================
+   SVGアイコンスタイル
+   ======================== */
+
+/* 共通SVGアイコンスタイル */
+.theme-toggle-icon,
+.audio-icon {
+  width: 24px;
+  height: 24px;
+  color: var(--primary);
+  transition: all 0.3s ease;
+}
+
+/* テーマトグルアイコン - 回転アニメーション */
+.icon-button:hover .theme-toggle-icon {
+  transform: rotate(180deg) scale(1.1);
+}
+
+/* 音声アイコン - フェードアニメーション */
+.icon-button:hover .audio-icon {
+  transform: scale(1.1);
+  opacity: 0.8;
+}
+
+/* アイコンボタンのホバー効果を調整 */
+.icon-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  min-width: 40px;
+  min-height: 40px;
+}
+
+.icon-button:hover {
+  background-color: rgba(168, 85, 247, 0.1);
+  border-radius: 8px;
+}
+
+/* ========================
+   ダークモード専用スタイル
+   ======================== */
+
+/* ダークモード時の動画カードホバー - パープルの影 */
+:root .video-card:hover,
+[data-theme="dark"] .video-card:hover {
+  box-shadow: 0 8px 16px rgba(168, 85, 247, 0.2);
+}
+
+/* ========================
+   Notion風ライトモード専用スタイル
+   ======================== */
+
+/* ライトモード時のカード - 繊細な影 */
+[data-theme="light"] .card {
+  box-shadow: rgba(15, 15, 15, 0.1) 0px 0px 0px 1px,
+              rgba(15, 15, 15, 0.1) 0px 2px 4px;
+}
+
+/* ライトモード時のアイコン - ブラウン系 */
+[data-theme="light"] .theme-toggle-icon,
+[data-theme="light"] .audio-icon {
+  color: #9F6B53; /* Notion風ウォームブラウン */
+}
+
+/* ライトモード時のホバー背景 */
+[data-theme="light"] .icon-button:hover {
+  background-color: rgba(159, 107, 83, 0.08);
+}
+
+/* ライトモード時のギャラリーカード - 繊細な影 */
+[data-theme="light"] .video-card {
+  box-shadow: rgba(15, 15, 15, 0.1) 0px 0px 0px 1px,
+              rgba(15, 15, 15, 0.1) 0px 2px 4px;
+  transition: all 0.2s ease;
+}
+
+[data-theme="light"] .video-card:hover {
+  box-shadow: rgba(15, 15, 15, 0.15) 0px 0px 0px 1px,
+              rgba(15, 15, 15, 0.15) 0px 4px 8px;
+  transform: translateY(-2px);
+}
+
+/* ライトモード時のモーダル - 繊細な影 */
+[data-theme="light"] .help-modal-content,
+[data-theme="light"] .vocab-list-modal-content {
+  box-shadow: rgba(15, 15, 15, 0.1) 0px 0px 0px 1px,
+              rgba(15, 15, 15, 0.1) 0px 8px 24px;
+}
+
+/* ========================
+   ライトモード：パープル完全排除
+   ======================== */
+
+/* 「一覧を見る」ボタン */
+[data-theme="light"] .btn-vocab-list {
+  background: rgba(159, 107, 83, 0.08);
+}
+
+[data-theme="light"] .btn-vocab-list:hover {
+  background: #9F6B53;
+  color: white;
+}
+
+/* 全動画カードの一覧ボタン */
+[data-theme="light"] .video-card-all .btn-vocab-list:hover {
+  background: rgba(255, 255, 255, 0.9);
+  color: #9F6B53;
+}
+
+/* フィルターボタン */
+[data-theme="light"] .filter-button.active {
+  box-shadow: 0 2px 8px rgba(159, 107, 83, 0.2);
+}
+
+[data-theme="light"] .filter-button:hover {
+  background: #8B6F47;
+  border-color: #8B6F47;
+}
+
+/* 動画カードホバー */
+[data-theme="light"] .video-card:hover {
+  box-shadow: rgba(15, 15, 15, 0.15) 0px 0px 0px 1px,
+              rgba(15, 15, 15, 0.15) 0px 4px 8px;
+}
+
+/* 全動画カードホバー */
+[data-theme="light"] .video-card-all:hover {
+  box-shadow: rgba(15, 15, 15, 0.2) 0px 0px 0px 1px,
+              rgba(15, 15, 15, 0.2) 0px 8px 16px;
+}
+
+/* 戻るボタンホバー */
+[data-theme="light"] .back-button:hover {
+  background: rgba(159, 107, 83, 0.08);
+}
+
+/* ヘルプモーダルボタンホバー */
+[data-theme="light"] .help-modal-button:hover {
+  background: #8B6F47;
+}
+
+/* インストールバナーアイコン */
+[data-theme="light"] .install-banner-icon {
+  background: linear-gradient(135deg, #9F6B53 0%, #8B6F47 100%);
+}
+
+/* 語彙テーブル行ホバー */
+[data-theme="light"] .vocab-list-table tbody tr:hover {
+  background: rgba(159, 107, 83, 0.03);
+}
+
+/* アイコンボタンホバー（既存のオーバーライド強化） */
+[data-theme="light"] .icon-button:hover {
+  background-color: rgba(159, 107, 83, 0.08);
+}
+
+/* 全動画カード - ブラウングラデーション */
+[data-theme="light"] .video-card-all {
+  background: linear-gradient(135deg, #9F6B53 0%, #8B6F47 100%);
+}
+
+/* インストールバナー - ブラウングラデーション */
+[data-theme="light"] .install-banner {
+  background: linear-gradient(135deg, #9F6B53 0%, #8B6F47 100%);
 }

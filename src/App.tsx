@@ -4,7 +4,8 @@ import type { VocabCard, VideoGroup } from './types';
 import {
   SAMPLE_DATA,
   DEFAULT_CSV_URL,
-  AUDIO_ENABLED_KEY
+  AUDIO_ENABLED_KEY,
+  THEME_PREFERENCE_KEY
 } from './types';
 
 // YouTube動画IDを抽出
@@ -25,6 +26,85 @@ function getThumbnailUrl(videoId: string): string {
   return `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`;
 }
 
+// テーマトグルアイコン（抽象的な半円デザイン）
+function ThemeToggleIcon({ theme }: { theme: 'dark' | 'light' }) {
+  return (
+    <svg
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className="theme-toggle-icon"
+    >
+      <circle
+        cx="12"
+        cy="12"
+        r="9"
+        stroke="currentColor"
+        strokeWidth="2"
+        fill="none"
+      />
+      <path
+        d={theme === 'dark'
+          ? "M12 3 A9 9 0 0 1 12 21 Z"  // 左半分塗りつぶし（夜）
+          : "M12 3 A9 9 0 0 0 12 21 Z"  // 右半分塗りつぶし（昼）
+        }
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+// 音声アイコン（スピーカーSVG）
+function AudioIcon({ enabled }: { enabled: boolean }) {
+  return (
+    <svg
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className="audio-icon"
+    >
+      {/* スピーカー本体 */}
+      <path
+        d="M11 5L6 9H2v6h4l5 4V5z"
+        stroke="currentColor"
+        strokeWidth="2"
+        fill="currentColor"
+        strokeLinejoin="round"
+      />
+
+      {enabled ? (
+        // 音波（ON時）
+        <>
+          <path
+            d="M15.5 8.5c.7.7 1.5 1.6 1.5 3.5s-.8 2.8-1.5 3.5"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
+          <path
+            d="M18 6c1.2 1.2 2 2.8 2 6s-.8 4.8-2 6"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
+        </>
+      ) : (
+        // スラッシュ線（OFF時）
+        <path
+          d="M3 3L21 21"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+        />
+      )}
+    </svg>
+  );
+}
+
 function App() {
   // 状態管理
   const [screen, setScreen] = useState<'gallery' | 'study'>('gallery');
@@ -37,6 +117,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [audioEnabled, setAudioEnabled] = useState(false);
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [showHelp, setShowHelp] = useState(false);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false); // カード切り替え中かどうか
@@ -220,6 +301,18 @@ function App() {
     }
   };
 
+  // テーマ設定を読み込み
+  const loadThemeSetting = () => {
+    const savedTheme = localStorage.getItem(THEME_PREFERENCE_KEY);
+    if (savedTheme === 'light' || savedTheme === 'dark') {
+      setTheme(savedTheme);
+    } else {
+      // localStorageに設定がない場合、OS設定を自動検出
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      setTheme(prefersDark ? 'dark' : 'light');
+    }
+  };
+
   // シンプルなカード選択（「余裕」以外からランダム）
   const selectNextCard = (allCards: VocabCard[], currentMastered: Set<string> = mastered): VocabCard | null => {
     // 「余裕」にしていないカードをフィルター
@@ -320,6 +413,13 @@ function App() {
     localStorage.setItem(AUDIO_ENABLED_KEY, String(newValue));
   };
 
+  // テーマトグル
+  const toggleTheme = () => {
+    const newTheme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(newTheme);
+    localStorage.setItem(THEME_PREFERENCE_KEY, newTheme);
+  };
+
   // 進捗リセット（セッションリセット）
   const handleReset = () => {
     const message = 'この セッションの進捗をリセットしてもよろしいですか？\n（「余裕」にした単語が全て再表示されます）';
@@ -400,9 +500,15 @@ function App() {
     setVocabListSource(null);
   };
 
+  // テーマ適用（data-theme属性）
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
+
   // 初期化
   useEffect(() => {
     loadAudioSetting();
+    loadThemeSetting();
     loadCSV();
 
     // PWAインストールバナー表示（初回アクセス時のみ）
@@ -525,9 +631,12 @@ function App() {
           <div className="header-right">
             {'speechSynthesis' in window && (
               <button onClick={toggleAudio} className="icon-button" title="音声読み上げ">
-                {audioEnabled ? '🔊' : '🔇'}
+                <AudioIcon enabled={audioEnabled} />
               </button>
             )}
+            <button onClick={toggleTheme} className="icon-button" title="テーマ切り替え">
+              <ThemeToggleIcon theme={theme} />
+            </button>
             <button onClick={() => setShowHelp(true)} className="icon-button" title="使い方">
               ?
             </button>
@@ -694,9 +803,12 @@ function App() {
           </button>
           {'speechSynthesis' in window && (
             <button onClick={toggleAudio} className="icon-button" title="音声読み上げ">
-              {audioEnabled ? '🔊' : '🔇'}
+              <AudioIcon enabled={audioEnabled} />
             </button>
           )}
+          <button onClick={toggleTheme} className="icon-button" title="テーマ切り替え">
+            <ThemeToggleIcon theme={theme} />
+          </button>
           <button onClick={() => setShowHelp(true)} className="icon-button" title="使い方">
             ?
           </button>

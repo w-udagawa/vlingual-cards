@@ -107,5 +107,6 @@ export const SAMPLE_DATA: VocabCard[] = [
 // Vercelの public/ ディレクトリからCSVを読み込み
 export const DEFAULT_CSV_URL = "/vocab.csv";
 
-// localStorage キー（音声設定のみ保持）
+// localStorage キー
 export const AUDIO_ENABLED_KEY = "audio_enabled";
+export const THEME_PREFERENCE_KEY = "theme_preference";
