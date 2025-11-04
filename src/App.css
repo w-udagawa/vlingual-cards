@@ -1189,6 +1189,58 @@
   color: var(--text);
 }
 
+/* フィルターボタン */
+.vocab-filter-buttons {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.vocab-filter-btn {
+  flex: 1;
+  min-width: 100px;
+  padding: 8px 16px;
+  background: var(--card-bg);
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.vocab-filter-btn:hover {
+  background: rgba(168, 85, 247, 0.1);
+  border-color: var(--primary);
+}
+
+.vocab-filter-btn.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+
+/* チェックボックス列 */
+.vocab-checkbox-col {
+  width: 60px;
+  text-align: center;
+}
+
+.vocab-checkbox {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: var(--primary);
+}
+
+/* チェック済み行 */
+.vocab-checked {
+  opacity: 0.4;
+  transition: opacity 0.2s ease;
+}
+
 .vocab-list-table-wrapper {
   flex: 1;
   overflow-y: auto;
@@ -1299,6 +1351,16 @@
     font-size: 24px;
   }
 
+  .vocab-filter-buttons {
+    margin-bottom: 12px;
+  }
+
+  .vocab-filter-btn {
+    font-size: 13px;
+    padding: 6px 12px;
+    min-width: 90px;
+  }
+
   .vocab-list-table {
     font-size: 14px;
   }
@@ -1310,6 +1372,15 @@
 
   .vocab-word {
     font-size: 14px;
+  }
+
+  .vocab-checkbox-col {
+    width: 50px;
+  }
+
+  .vocab-checkbox {
+    width: 16px;
+    height: 16px;
   }
 }
 
@@ -1337,6 +1408,17 @@
     height: 28px;
   }
 
+  .vocab-filter-buttons {
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+
+  .vocab-filter-btn {
+    font-size: 12px;
+    padding: 5px 10px;
+    min-width: 80px;
+  }
+
   .vocab-list-table {
     font-size: 13px;
   }
@@ -1348,6 +1430,15 @@
 
   .vocab-word {
     font-size: 13px;
+  }
+
+  .vocab-checkbox-col {
+    width: 45px;
+  }
+
+  .vocab-checkbox {
+    width: 14px;
+    height: 14px;
   }
 
   .difficulty-badge {
@@ -1511,6 +1602,29 @@
 /* 語彙テーブル行ホバー */
 [data-theme="light"] .vocab-list-table tbody tr:hover {
   background: rgba(100, 116, 139, 0.03);
+}
+
+/* フィルターボタン */
+[data-theme="light"] .vocab-filter-btn {
+  background: white;
+  border-color: #E2E8F0;
+  color: #334155;
+}
+
+[data-theme="light"] .vocab-filter-btn:hover {
+  background: rgba(100, 116, 139, 0.08);
+  border-color: #64748B;
+}
+
+[data-theme="light"] .vocab-filter-btn.active {
+  background: #64748B;
+  border-color: #64748B;
+  color: white;
+}
+
+/* チェックボックス */
+[data-theme="light"] .vocab-checkbox {
+  accent-color: #64748B;
 }
 
 /* アイコンボタンホバー（既存のオーバーライド強化） */

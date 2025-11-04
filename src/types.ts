@@ -153,3 +153,4 @@ export const DEFAULT_CSV_URL = "/vocab.csv";
 export const AUDIO_ENABLED_KEY = "audio_enabled";
 export const THEME_PREFERENCE_KEY = "theme_preference";
 export const AGENCY_ORDER_KEY = "agency_order";
+export const VOCABULARY_CHECKED_KEY = "vocabulary_checked";

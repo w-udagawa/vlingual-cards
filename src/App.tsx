@@ -6,7 +6,8 @@ import {
   DEFAULT_CSV_URL,
   AUDIO_ENABLED_KEY,
   THEME_PREFERENCE_KEY,
-  AGENCY_ORDER_KEY
+  AGENCY_ORDER_KEY,
+  VOCABULARY_CHECKED_KEY
 } from './types';
 
 // YouTube動画IDを抽出
@@ -129,6 +130,8 @@ function App() {
   const [agencyOrder, setAgencyOrder] = useState<string[]>([]); // 事務所の並び順
   const [showAgencyOrderModal, setShowAgencyOrderModal] = useState(false); // 並び順変更モーダルの表示状態
   const [tempOrder, setTempOrder] = useState<string[]>([]); // 並び順変更モーダル用の一時的な並び順
+  const [checkedVocab, setCheckedVocab] = useState<Map<string, Set<string>>>(new Map()); // 動画IDをキーに、チェックした単語のSetを保存
+  const [vocabListFilter, setVocabListFilter] = useState<'all' | 'unchecked' | 'checked'>('all'); // 語彙一覧のフィルター状態
 
   // CSV解析関数
   const parseCSV = (csvText: string): VocabCard[] => {
@@ -402,6 +405,48 @@ function App() {
     localStorage.setItem(AGENCY_ORDER_KEY, JSON.stringify(order));
   };
 
+  // チェック済み語彙を読み込み
+  const loadCheckedVocab = () => {
+    const saved = localStorage.getItem(VOCABULARY_CHECKED_KEY);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        const map = new Map<string, Set<string>>();
+        Object.keys(parsed).forEach(videoId => {
+          map.set(videoId, new Set(parsed[videoId]));
+        });
+        setCheckedVocab(map);
+      } catch (e) {
+        console.error('Failed to parse checked vocabulary:', e);
+      }
+    }
+  };
+
+  // チェック済み語彙を保存
+  const saveCheckedVocab = (map: Map<string, Set<string>>) => {
+    const obj: Record<string, string[]> = {};
+    map.forEach((wordSet, videoId) => {
+      obj[videoId] = Array.from(wordSet);
+    });
+    localStorage.setItem(VOCABULARY_CHECKED_KEY, JSON.stringify(obj));
+    setCheckedVocab(map);
+  };
+
+  // 語彙のチェック状態をトグル
+  const toggleVocabCheck = (videoId: string, word: string) => {
+    const newMap = new Map(checkedVocab);
+    if (!newMap.has(videoId)) {
+      newMap.set(videoId, new Set());
+    }
+    const wordSet = newMap.get(videoId)!;
+    if (wordSet.has(word)) {
+      wordSet.delete(word);
+    } else {
+      wordSet.add(word);
+    }
+    saveCheckedVocab(newMap);
+  };
+
   // シンプルなカード選択（「余裕」以外からランダム）
   const selectNextCard = (allCards: VocabCard[], currentMastered: Set<string> = mastered): VocabCard | null => {
     // 「余裕」にしていないカードをフィルター
@@ -660,6 +705,7 @@ function App() {
     loadAudioSetting();
     loadThemeSetting();
     loadAgencyOrder();
+    loadCheckedVocab();
     loadCSV();
 
     // PWAインストールバナー表示（初回アクセス時のみ）
@@ -774,6 +820,17 @@ function App() {
       return () => document.removeEventListener('keydown', handleEsc);
     }, []);
 
+    // フィルター適用
+    const videoId = vocabListSource.id;
+    const checkedWords = checkedVocab.get(videoId) || new Set<string>();
+
+    const filteredCards = vocabListSource.cards.filter(card => {
+      const isChecked = checkedWords.has(card.単語);
+      if (vocabListFilter === 'checked') return isChecked;
+      if (vocabListFilter === 'unchecked') return !isChecked;
+      return true; // 'all'
+    });
+
     return (
       <div className="vocab-list-modal-overlay" onClick={handleCloseVocabList}>
         <div className="vocab-list-modal-content" onClick={(e) => e.stopPropagation()}>
@@ -785,22 +842,56 @@ function App() {
             </button>
           </div>
 
+          {/* フィルターボタン */}
+          <div className="vocab-filter-buttons">
+            <button
+              className={`vocab-filter-btn ${vocabListFilter === 'all' ? 'active' : ''}`}
+              onClick={() => setVocabListFilter('all')}
+            >
+              全て ({vocabListSource.cards.length})
+            </button>
+            <button
+              className={`vocab-filter-btn ${vocabListFilter === 'unchecked' ? 'active' : ''}`}
+              onClick={() => setVocabListFilter('unchecked')}
+            >
+              未チェック ({vocabListSource.cards.length - checkedWords.size})
+            </button>
+            <button
+              className={`vocab-filter-btn ${vocabListFilter === 'checked' ? 'active' : ''}`}
+              onClick={() => setVocabListFilter('checked')}
+            >
+              チェック済み ({checkedWords.size})
+            </button>
+          </div>
+
           {/* テーブル */}
           <div className="vocab-list-table-wrapper">
             <table className="vocab-list-table">
               <thead>
                 <tr>
+                  <th className="vocab-checkbox-col">覚えた</th>
                   <th>単語</th>
                   <th>和訳</th>
                 </tr>
               </thead>
               <tbody>
-                {vocabListSource.cards.map((card, index) => (
-                  <tr key={index}>
-                    <td className="vocab-word">{card.単語}</td>
-                    <td className="vocab-translation">{card.和訳}</td>
-                  </tr>
-                ))}
+                {filteredCards.map((card, index) => {
+                  const isChecked = checkedWords.has(card.単語);
+                  return (
+                    <tr key={index} className={isChecked ? 'vocab-checked' : ''}>
+                      <td className="vocab-checkbox-col">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => toggleVocabCheck(videoId, card.単語)}
+                          className="vocab-checkbox"
+                        />
+                      </td>
+                      <td className="vocab-word">{card.単語}</td>
+                      <td className="vocab-translation">{card.和訳}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
