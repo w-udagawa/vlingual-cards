@@ -1176,30 +1176,9 @@
   color: var(--text);
 }
 
-.vocab-list-info {
-  text-align: center;
-  margin-bottom: 20px;
-  padding-bottom: 16px;
-  border-bottom: 2px solid var(--border);
-}
-
-.vocab-list-info h3 {
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--text);
-  margin: 0 0 8px 0;
-}
-
-.vocab-list-info p {
-  font-size: 14px;
-  color: var(--text-secondary);
-  margin: 0;
-}
-
 .vocab-list-table-wrapper {
   flex: 1;
   overflow-y: auto;
-  margin-bottom: 20px;
   border-radius: 8px;
   border: 2px solid var(--border);
 }
@@ -1263,24 +1242,6 @@
   text-align: center;
 }
 
-.vocab-list-button {
-  width: 100%;
-  padding: 14px;
-  background: var(--primary);
-  border: none;
-  border-radius: 12px;
-  color: white;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.vocab-list-button:hover {
-  background: #9333ea;
-  transform: translateY(-2px);
-}
-
 /* 「一覧を見る」ボタン */
 .btn-vocab-list {
   margin-top: 12px;
@@ -1325,10 +1286,6 @@
     font-size: 24px;
   }
 
-  .vocab-list-info h3 {
-    font-size: 18px;
-  }
-
   .vocab-list-table {
     font-size: 14px;
   }
@@ -1365,19 +1322,6 @@
     font-size: 28px;
     width: 28px;
     height: 28px;
-  }
-
-  .vocab-list-info {
-    margin-bottom: 16px;
-    padding-bottom: 12px;
-  }
-
-  .vocab-list-info h3 {
-    font-size: 17px;
-  }
-
-  .vocab-list-info p {
-    font-size: 13px;
   }
 
   .vocab-list-table {

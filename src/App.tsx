@@ -456,12 +456,6 @@ function App() {
             </button>
           </div>
 
-          {/* 動画情報 */}
-          <div className="vocab-list-info">
-            <h3>{vocabListSource.title}</h3>
-            <p>{vocabListSource.wordCount}語</p>
-          </div>
-
           {/* テーブル */}
           <div className="vocab-list-table-wrapper">
             <table className="vocab-list-table">
@@ -469,7 +463,6 @@ function App() {
                 <tr>
                   <th>単語</th>
                   <th>和訳</th>
-                  <th>難易度</th>
                 </tr>
               </thead>
               <tbody>
@@ -477,24 +470,11 @@ function App() {
                   <tr key={index}>
                     <td className="vocab-word">{card.単語}</td>
                     <td className="vocab-translation">{card.和訳}</td>
-                    <td>
-                      <span
-                        className="difficulty-badge"
-                        style={{ backgroundColor: getLevelColor(card.難易度) }}
-                      >
-                        {card.難易度}
-                      </span>
-                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-
-          {/* 閉じるボタン */}
-          <button className="vocab-list-button" onClick={handleCloseVocabList}>
-            閉じる
-          </button>
         </div>
       </div>
     );
