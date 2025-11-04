@@ -40,6 +40,8 @@ function App() {
   const [showHelp, setShowHelp] = useState(false);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false); // カード切り替え中かどうか
+  const [showVocabList, setShowVocabList] = useState(false); // 語彙一覧モーダルの表示状態
+  const [vocabListSource, setVocabListSource] = useState<VideoGroup | null>(null); // 一覧表示する動画
 
   // CSV解析関数
   const parseCSV = (csvText: string): VocabCard[] => {
@@ -367,6 +369,37 @@ function App() {
     localStorage.setItem('install_banner_dismissed', 'true');
   };
 
+  // 語彙一覧を開く（ギャラリーから）
+  const handleOpenVocabListFromGallery = (video: VideoGroup, e: React.MouseEvent) => {
+    e.stopPropagation(); // 動画選択をキャンセル
+    setVocabListSource(video);
+    setShowVocabList(true);
+  };
+
+  // 語彙一覧を開く（学習画面から）
+  const handleOpenVocabListFromStudy = () => {
+    if (selectedVideo) {
+      setVocabListSource(selectedVideo);
+    } else {
+      // 「全ての動画」の場合
+      setVocabListSource({
+        id: 'all',
+        title: '全ての動画',
+        url: '',
+        thumbnailUrl: '',
+        cards: cards,
+        wordCount: cards.length
+      });
+    }
+    setShowVocabList(true);
+  };
+
+  // 語彙一覧を閉じる
+  const handleCloseVocabList = () => {
+    setShowVocabList(false);
+    setVocabListSource(null);
+  };
+
   // 初期化
   useEffect(() => {
     loadAudioSetting();
@@ -395,6 +428,76 @@ function App() {
       case '上級': return 'var(--level-advanced)';
       default: return '#888';
     }
+  };
+
+  // 語彙一覧モーダルコンポーネント
+  const VocabListModal = () => {
+    if (!showVocabList || !vocabListSource) return null;
+
+    // ESCキーでモーダルを閉じる
+    useEffect(() => {
+      const handleEsc = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          handleCloseVocabList();
+        }
+      };
+      document.addEventListener('keydown', handleEsc);
+      return () => document.removeEventListener('keydown', handleEsc);
+    }, []);
+
+    return (
+      <div className="vocab-list-modal-overlay" onClick={handleCloseVocabList}>
+        <div className="vocab-list-modal-content" onClick={(e) => e.stopPropagation()}>
+          {/* ヘッダー */}
+          <div className="vocab-list-header">
+            <h2>📋 語彙一覧</h2>
+            <button className="vocab-list-close" onClick={handleCloseVocabList}>
+              ×
+            </button>
+          </div>
+
+          {/* 動画情報 */}
+          <div className="vocab-list-info">
+            <h3>{vocabListSource.title}</h3>
+            <p>{vocabListSource.wordCount}語</p>
+          </div>
+
+          {/* テーブル */}
+          <div className="vocab-list-table-wrapper">
+            <table className="vocab-list-table">
+              <thead>
+                <tr>
+                  <th>単語</th>
+                  <th>和訳</th>
+                  <th>難易度</th>
+                </tr>
+              </thead>
+              <tbody>
+                {vocabListSource.cards.map((card, index) => (
+                  <tr key={index}>
+                    <td className="vocab-word">{card.単語}</td>
+                    <td className="vocab-translation">{card.和訳}</td>
+                    <td>
+                      <span
+                        className="difficulty-badge"
+                        style={{ backgroundColor: getLevelColor(card.難易度) }}
+                      >
+                        {card.難易度}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* 閉じるボタン */}
+          <button className="vocab-list-button" onClick={handleCloseVocabList}>
+            閉じる
+          </button>
+        </div>
+      </div>
+    );
   };
 
   // ローディング画面
@@ -471,6 +574,12 @@ function App() {
                 <div className="video-info">
                   <h3 className="video-title">{video.title}</h3>
                   <p className="video-word-count">📖 {video.wordCount}語</p>
+                  <button
+                    className="btn-vocab-list"
+                    onClick={(e) => handleOpenVocabListFromGallery(video, e)}
+                  >
+                    📋 一覧を見る
+                  </button>
                 </div>
               </div>
             ))}
@@ -486,11 +595,31 @@ function App() {
                   <h3 className="video-title">全ての動画</h3>
                   <p className="video-word-count">📖 {totalWords}語</p>
                   <p className="all-videos-subtitle">すべて学習</p>
+                  <button
+                    className="btn-vocab-list"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setVocabListSource({
+                        id: 'all',
+                        title: '全ての動画',
+                        url: '',
+                        thumbnailUrl: '',
+                        cards: allVideos.flatMap(v => v.cards),
+                        wordCount: totalWords
+                      });
+                      setShowVocabList(true);
+                    }}
+                  >
+                    📋 一覧を見る
+                  </button>
                 </div>
               </div>
             )}
           </div>
         </main>
+
+        {/* 語彙一覧モーダル */}
+        <VocabListModal />
 
         {/* ヘルプモーダル */}
         {showHelp && (
@@ -580,6 +709,9 @@ function App() {
         </div>
         <div className="header-right">
           <span className="today-count">残り {cards.length - mastered.size}/{cards.length}枚</span>
+          <button onClick={handleOpenVocabListFromStudy} className="icon-button" title="語彙一覧">
+            📋
+          </button>
           {'speechSynthesis' in window && (
             <button onClick={toggleAudio} className="icon-button" title="音声読み上げ">
               {audioEnabled ? '🔊' : '🔇'}
@@ -715,6 +847,9 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* 語彙一覧モーダル */}
+      <VocabListModal />
 
       {/* ヘルプモーダル */}
       {showHelp && (
