@@ -59,24 +59,14 @@
   justify-content: center;
 }
 
-.btn-retry,
-.btn-sample {
+.btn-retry {
   padding: 12px 24px;
   border-radius: 8px;
   font-size: 16px;
   font-weight: 600;
   min-width: 120px;
-}
-
-.btn-retry {
   background-color: var(--primary);
   color: white;
-}
-
-.btn-sample {
-  background-color: var(--card-bg);
-  color: var(--text-primary);
-  border: 2px solid var(--border);
 }
 
 /* 警告バナー */
@@ -351,7 +341,7 @@
 }
 
 .card-context {
-  background-color: var(--background);
+  background-color: var(--surface-sunken);
   padding: 16px;
   border-radius: 8px;
   font-size: 16px;
@@ -439,27 +429,6 @@
   opacity: 0.5;
   cursor: not-allowed;
   pointer-events: none;
-}
-
-/* フッター */
-.footer {
-  margin-top: 24px;
-  display: flex;
-  justify-content: center;
-}
-
-.btn-reset {
-  padding: 12px 24px;
-  border-radius: 8px;
-  background-color: var(--card-bg);
-  color: var(--text-secondary);
-  border: 2px solid var(--border);
-  font-size: 14px;
-}
-
-.btn-reset:hover {
-  color: var(--again-text);
-  border-color: var(--again-border);
 }
 
 /* レスポンシブ対応 */
@@ -775,7 +744,7 @@
 }
 
 .help-modal-close:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--hover-overlay);
   color: var(--text);
 }
 
@@ -1211,7 +1180,7 @@
 }
 
 .vocab-list-close:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--hover-overlay);
   color: var(--text);
 }
 
@@ -1283,7 +1252,7 @@
 .vocab-list-table thead {
   position: sticky;
   top: 0;
-  background: var(--background);
+  background: var(--surface-sunken);
   z-index: 1;
 }
 
@@ -1855,4 +1824,171 @@
   .btn-cancel-order {
     width: 100%;
   }
+}
+
+/* ============================================
+   v3.0.0 追加スタイル
+   （今日の復習・完了画面アクション・例文準備中・
+     音声リプレイ・データ引っ越し・空状態）
+   ============================================ */
+
+/* 今日の復習エントリー（キャスト一覧の最上部） */
+.review-entry {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 16px 20px;
+  margin-bottom: 24px;
+  border-radius: 12px;
+  background: var(--accent-wash);
+  border: 2px solid var(--border);
+  color: var(--text-primary);
+  text-align: left;
+}
+
+.review-entry:hover {
+  border-color: var(--primary);
+}
+
+.review-entry-icon {
+  font-size: 32px;
+  flex-shrink: 0;
+}
+
+.review-entry-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.review-entry-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.review-entry-subtitle {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+/* 完了画面のアクション */
+.completion-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 320px;
+}
+
+.btn-video-primary {
+  display: block;
+  width: 100%;
+  padding: 14px 24px;
+  border-radius: 8px;
+  background-color: var(--primary);
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+}
+
+.btn-video-primary:hover {
+  background-color: var(--primary-hover);
+  text-decoration: none;
+}
+
+.completion-actions .btn-retry {
+  width: 100%;
+}
+
+.btn-secondary {
+  width: 100%;
+  padding: 12px 24px;
+  border-radius: 8px;
+  background-color: var(--card-bg);
+  color: var(--text-secondary);
+  border: 2px solid var(--border);
+  font-size: 14px;
+}
+
+/* カード裏面のアクション列（🔊 + 動画リンク） */
+.card-back-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.card-audio-btn {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background-color: var(--surface-sunken);
+  border: 1px solid var(--border);
+  font-size: 16px;
+  line-height: 1;
+}
+
+/* 例文準備中 */
+.card-context.context-pending {
+  color: var(--text-muted);
+  font-style: italic;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ヘルプ内の補足注記 */
+.help-note {
+  font-size: 13px;
+  color: var(--text-secondary);
+  background-color: var(--surface-sunken);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-top: 8px;
+}
+
+/* 語彙一覧の空状態 */
+.vocab-empty {
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+/* 学習データの引っ越し（ヘルプモーダル内） */
+.data-transfer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.btn-data {
+  align-self: flex-start;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background-color: var(--surface-sunken);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  font-size: 14px;
+}
+
+.data-textarea {
+  width: 100%;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background-color: var(--surface-sunken);
+  color: var(--text-primary);
+  font-family: monospace;
+  font-size: 12px;
+  resize: vertical;
+}
+
+.data-message {
+  font-size: 13px;
+  color: var(--text-secondary);
 }

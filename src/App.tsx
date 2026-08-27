@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import './App.css';
 import type { VocabCard, VideoGroup, CastGroup } from './types';
 import {
@@ -7,25 +7,127 @@ import {
   AUDIO_ENABLED_KEY,
   THEME_PREFERENCE_KEY,
   AGENCY_ORDER_KEY,
-  VOCABULARY_CHECKED_KEY
+  INSTALL_BANNER_DISMISSED_KEY
 } from './types';
+import { parseVocabCsv, attachCardIds } from './lib/csv';
+import type { CardProgress, Rating } from './lib/schedule';
+import {
+  applyRating,
+  isMastered,
+  setMasteredManually,
+  setUnlearnedManually,
+  todayLocal
+} from './lib/schedule';
+import type { ActiveSession, LearningStore } from './lib/store';
+import {
+  emptyStore,
+  loadStore,
+  saveStore,
+  migrateLegacyChecked,
+  exportProgress,
+  importProgress
+} from './lib/store';
+import {
+  buildStudySet,
+  buildReviewSet,
+  reinsert,
+  sanitizeQueue,
+  availableSetSize,
+  countDue,
+  countMastered,
+  SET_SIZE,
+  REVIEW_LIMIT
+} from './lib/session';
 
-// YouTube動画IDを抽出
-function extractYouTubeId(url: string): string | null {
-  const patterns = [
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&?\/]+)/,
-    /youtube\.com\/embed\/([^&?\/]+)/,
-  ];
-  for (const pattern of patterns) {
-    const match = url.match(pattern);
-    if (match) return match[1];
-  }
-  return null;
-}
+// 開発時のみの構造化ログ（本番ビルドには出さない）
+const devLog = (...args: unknown[]) => {
+  if (import.meta.env.DEV) console.log(...args);
+};
 
-// サムネイルURL生成
+// サムネイルURL生成（APIキー不要のYouTube CDN直参照）
 function getThumbnailUrl(videoId: string): string {
   return `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`;
+}
+
+// 難易度に応じた色を取得
+function getLevelColor(level: string): string {
+  switch (level) {
+    case '初級': return 'var(--level-beginner)';
+    case '中級': return 'var(--level-intermediate)';
+    case '上級': return 'var(--level-advanced)';
+    default: return '#888';
+  }
+}
+
+// 動画ごとにカードをグループ化（動画タイトルはvideoId初出行を正とする）
+function groupCardsByVideo(cards: VocabCard[]): VideoGroup[] {
+  const grouped = new Map<string, VideoGroup>();
+
+  cards.forEach(card => {
+    if (!grouped.has(card.videoId)) {
+      grouped.set(card.videoId, {
+        id: card.videoId,
+        title: card.動画タイトル || `動画${grouped.size + 1}`,
+        url: card.動画URL,
+        thumbnailUrl: getThumbnailUrl(card.videoId),
+        cards: [],
+        wordCount: 0
+      });
+    }
+    const group = grouped.get(card.videoId)!;
+    group.cards.push(card);
+    group.wordCount++;
+  });
+
+  return Array.from(grouped.values());
+}
+
+// キャスト名をURL用スラッグに変換
+function createCastSlug(castName: string): string {
+  return encodeURIComponent(castName);
+}
+
+// キャストごとにカードをグループ化
+function groupCardsByCast(cards: VocabCard[]): CastGroup[] {
+  const videoGroups = groupCardsByVideo(cards);
+  const castMap = new Map<string, CastGroup>();
+
+  videoGroups.forEach(videoGroup => {
+    const firstCard = videoGroup.cards[0];
+    const castName = firstCard?.キャスト名 || '未分類';
+    const agency = firstCard?.事務所;
+    const castId = createCastSlug(castName);
+
+    if (!castMap.has(castId)) {
+      castMap.set(castId, {
+        id: castId,
+        name: castName,
+        agency: agency,
+        videos: [],
+        wordCount: 0,
+        thumbnailUrl: videoGroup.thumbnailUrl
+      });
+    }
+
+    const castGroup = castMap.get(castId)!;
+    castGroup.videos.push(videoGroup);
+    castGroup.wordCount += videoGroup.wordCount;
+  });
+
+  return Array.from(castMap.values()).sort((a, b) => {
+    const agencyA = a.agency || 'ZZZZ未分類';
+    const agencyB = b.agency || 'ZZZZ未分類';
+    return agencyA.localeCompare(agencyB, 'ja');
+  });
+}
+
+// 音声読み上げ（設定に関係なく単発で鳴らす）
+function speakNow(word: string) {
+  if (!('speechSynthesis' in window)) return;
+  const utterance = new SpeechSynthesisUtterance(word);
+  utterance.lang = 'en-US';
+  utterance.rate = 0.9;
+  speechSynthesis.speak(utterance);
 }
 
 // テーマトグルアイコン（抽象的な半円デザイン）
@@ -39,14 +141,7 @@ function ThemeToggleIcon({ theme }: { theme: 'dark' | 'light' }) {
       xmlns="http://www.w3.org/2000/svg"
       className="theme-toggle-icon"
     >
-      <circle
-        cx="12"
-        cy="12"
-        r="9"
-        stroke="currentColor"
-        strokeWidth="2"
-        fill="none"
-      />
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" fill="none" />
       <path
         d={theme === 'dark'
           ? "M12 3 A9 9 0 0 1 12 21 Z"  // 左半分塗りつぶし（夜）
@@ -69,7 +164,6 @@ function AudioIcon({ enabled }: { enabled: boolean }) {
       xmlns="http://www.w3.org/2000/svg"
       className="audio-icon"
     >
-      {/* スピーカー本体 */}
       <path
         d="M11 5L6 9H2v6h4l5 4V5z"
         stroke="currentColor"
@@ -77,9 +171,7 @@ function AudioIcon({ enabled }: { enabled: boolean }) {
         fill="currentColor"
         strokeLinejoin="round"
       />
-
       {enabled ? (
-        // 音波（ON時）
         <>
           <path
             d="M15.5 8.5c.7.7 1.5 1.6 1.5 3.5s-.8 2.8-1.5 3.5"
@@ -95,447 +187,493 @@ function AudioIcon({ enabled }: { enabled: boolean }) {
           />
         </>
       ) : (
-        // スラッシュ線（OFF時）
-        <path
-          d="M3 3L21 21"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-        />
+        <path d="M3 3L21 21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       )}
     </svg>
   );
 }
 
+// 語彙一覧モーダル（チェック = mastered の手動スイッチ）
+function VocabListModal({
+  title,
+  cards,
+  progress,
+  filter,
+  onFilterChange,
+  onToggle,
+  onClose
+}: {
+  title: string;
+  cards: VocabCard[];
+  progress: Record<string, CardProgress>;
+  filter: 'all' | 'unchecked' | 'checked';
+  onFilterChange: (f: 'all' | 'unchecked' | 'checked') => void;
+  onToggle: (card: VocabCard) => void;
+  onClose: () => void;
+}) {
+  // ESCキーでモーダルを閉じる
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleEsc);
+    return () => document.removeEventListener('keydown', handleEsc);
+  }, [onClose]);
+
+  const isChecked = (card: VocabCard) => isMastered(progress[card.id]);
+  const checkedCount = countMastered(cards, progress);
+
+  const filteredCards = cards.filter(card => {
+    if (filter === 'checked') return isChecked(card);
+    if (filter === 'unchecked') return !isChecked(card);
+    return true;
+  });
+
+  return (
+    <div className="vocab-list-modal-overlay" onClick={onClose}>
+      <div className="vocab-list-modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="vocab-list-header">
+          <h2>📋 {title}</h2>
+          <button className="vocab-list-close" onClick={onClose}>×</button>
+        </div>
+
+        <div className="vocab-filter-buttons">
+          <button
+            className={`vocab-filter-btn ${filter === 'all' ? 'active' : ''}`}
+            onClick={() => onFilterChange('all')}
+          >
+            全て ({cards.length})
+          </button>
+          <button
+            className={`vocab-filter-btn ${filter === 'unchecked' ? 'active' : ''}`}
+            onClick={() => onFilterChange('unchecked')}
+          >
+            学習中 ({cards.length - checkedCount})
+          </button>
+          <button
+            className={`vocab-filter-btn ${filter === 'checked' ? 'active' : ''}`}
+            onClick={() => onFilterChange('checked')}
+          >
+            覚えた ({checkedCount})
+          </button>
+        </div>
+
+        <div className="vocab-list-table-wrapper">
+          <table className="vocab-list-table">
+            <thead>
+              <tr>
+                <th className="vocab-checkbox-col">覚えた</th>
+                <th>単語</th>
+                <th>和訳</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredCards.length === 0 ? (
+                <tr>
+                  <td colSpan={3} className="vocab-empty">該当する単語はありません</td>
+                </tr>
+              ) : (
+                filteredCards.map(card => {
+                  const checked = isChecked(card);
+                  return (
+                    <tr key={card.id} className={checked ? 'vocab-checked' : ''}>
+                      <td className="vocab-checkbox-col">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => onToggle(card)}
+                          className="vocab-checkbox"
+                        />
+                      </td>
+                      <td className="vocab-word">{card.単語}</td>
+                      <td className="vocab-translation">{card.和訳}</td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ヘルプモーダル（全画面共通・実装と一致する説明のみ）
+function HelpModal({
+  onClose,
+  buildExport,
+  doImport
+}: {
+  onClose: () => void;
+  buildExport: () => string;
+  doImport: (text: string) => boolean;
+}) {
+  const [exportText, setExportText] = useState('');
+  const [importText, setImportText] = useState('');
+  const [dataMessage, setDataMessage] = useState('');
+
+  const handleShowExport = () => {
+    setExportText(buildExport());
+    setDataMessage('');
+  };
+
+  const handleCopyExport = async () => {
+    try {
+      await navigator.clipboard.writeText(exportText);
+      setDataMessage('コピーしました');
+    } catch {
+      setDataMessage('コピーできませんでした。テキストを選択して手動でコピーしてください');
+    }
+  };
+
+  const handleImport = () => {
+    if (!importText.trim()) return;
+    if (doImport(importText)) {
+      setDataMessage('取り込みました！進捗が反映されています');
+      setImportText('');
+    } else {
+      setDataMessage('取り込めませんでした。テキストが正しいか確認してください');
+    }
+  };
+
+  return (
+    <div className="help-modal-overlay" onClick={onClose}>
+      <div className="help-modal-content" onClick={(e) => e.stopPropagation()}>
+        <button className="help-modal-close" onClick={onClose}>×</button>
+        <h2>📖 使い方</h2>
+
+        <section className="help-section">
+          <h3>🎯 基本的な使い方</h3>
+          <ol>
+            <li><strong>キャスト・動画を選択</strong>: 推しのキャスト → 学習したい動画をタップ</li>
+            <li><strong>カードをタップ</strong>: 表面（英単語）をめくって裏面（和訳と実際の発話）を確認</li>
+            <li><strong>3段階で評価</strong>:
+              <ul>
+                <li>🔴 <strong>覚えてない</strong>: すぐまた出てきます</li>
+                <li>🟡 <strong>だいたいOK</strong>: しばらくしてまた出てきます</li>
+                <li>🟢 <strong>余裕</strong>: 当分出てきません</li>
+              </ul>
+            </li>
+          </ol>
+          <p className="help-note">記録が進むのは1日1回。同じ日に何度評価しても、翌日以降の出方は変わりません。</p>
+        </section>
+
+        <section className="help-section">
+          <h3>🔁 今日の復習</h3>
+          <p>前に学んだ単語は、忘れかけた頃に自動でまた出てきます。ホーム画面に「今日の復習」が表示されたら、サッと片付けましょう（数分で終わります）。</p>
+        </section>
+
+        <section className="help-section">
+          <h3>📋 語彙一覧と「覚えた」チェック</h3>
+          <p>一覧で「覚えた」にチェックすると、その単語は出題されなくなります。学習で「余裕」を積み重ねた単語にも自動でチェックが付きます。チェックを外せばまた出題されます。</p>
+        </section>
+
+        <section className="help-section">
+          <h3>💾 進捗の保存</h3>
+          <ul>
+            <li>✅ 進捗はこの端末のブラウザに自動保存されます</li>
+            <li>⚠️ ブラウザのデータ削除で消えます。別の端末・ブラウザとは共有されません</li>
+            <li>📲 ホーム画面に追加して使うと、進捗が消えにくくなります</li>
+          </ul>
+        </section>
+
+        <section className="help-section">
+          <h3>🎵 音声読み上げ</h3>
+          <p>ヘッダーのスピーカーボタンでON/OFFできます。ONにするとカードをめくった時に発音が流れます。カード裏面の🔊でいつでも聞き直せます。</p>
+        </section>
+
+        <section className="help-section">
+          <h3>📦 学習データの引っ越し</h3>
+          <p>進捗を別の端末に移したり、バックアップできます。</p>
+          <div className="data-transfer">
+            <button className="btn-data" onClick={handleShowExport}>進捗を書き出す</button>
+            {exportText && (
+              <>
+                <textarea className="data-textarea" readOnly value={exportText} rows={3} />
+                <button className="btn-data" onClick={handleCopyExport}>コピー</button>
+              </>
+            )}
+            <textarea
+              className="data-textarea"
+              placeholder="書き出したテキストをここに貼り付け"
+              value={importText}
+              onChange={(e) => setImportText(e.target.value)}
+              rows={3}
+            />
+            <button className="btn-data" onClick={handleImport}>取り込む</button>
+            {dataMessage && <p className="data-message">{dataMessage}</p>}
+          </div>
+        </section>
+
+        <section className="help-section">
+          <h3>📲 ホーム画面に追加</h3>
+          <ul>
+            <li><strong>iPhone/iPad</strong>: Safari で共有ボタン → 「ホーム画面に追加」</li>
+            <li><strong>Android</strong>: Chrome のメニュー → 「ホーム画面に追加」</li>
+          </ul>
+        </section>
+
+        <button className="help-modal-button" onClick={onClose}>閉じる</button>
+      </div>
+    </div>
+  );
+}
+
+// PWAインストールバナー
+function InstallBanner({ onDismiss }: { onDismiss: () => void }) {
+  return (
+    <div className="install-banner">
+      <button className="install-banner-close" onClick={onDismiss}>×</button>
+      <div className="install-banner-icon">📲</div>
+      <div className="install-banner-content">
+        <h3>ホーム画面に追加できます</h3>
+        <p className="install-banner-subtitle">アプリのように使えて、学習の進捗も消えにくくなります</p>
+        <div className="install-banner-steps">
+          <div className="install-step">
+            <strong>iPhone/iPad:</strong> Safari の共有ボタン → 「ホーム画面に追加」
+          </div>
+          <div className="install-step">
+            <strong>Android:</strong> Chrome のメニュー → 「ホーム画面に追加」
+          </div>
+        </div>
+        <button className="install-banner-button" onClick={onDismiss}>閉じる</button>
+      </div>
+    </div>
+  );
+}
+
+type Screen = 'cast-list' | 'video-list' | 'study';
+type VocabListSource = { title: string; cards: VocabCard[] };
+
+// ActiveSessionの組み立てを1箇所に（キューが空ならセッションなし）
+function makeSession(scopeId: string, day: number, queue: string[]): ActiveSession | null {
+  return queue.length > 0 ? { scopeId, day, queue } : null;
+}
+
 function App() {
-  // 状態管理
-  const [screen, setScreen] = useState<'cast-list' | 'video-list' | 'study'>('cast-list');
-  const [allCasts, setAllCasts] = useState<CastGroup[]>([]); // キャスト一覧
-  const [allVideos, setAllVideos] = useState<VideoGroup[]>([]); // 選択されたキャストの動画一覧
-  const [selectedCast, setSelectedCast] = useState<CastGroup | null>(null); // 選択されたキャスト
-  const [selectedVideo, setSelectedVideo] = useState<VideoGroup | null>(null); // 選択された動画
-  const [cards, setCards] = useState<VocabCard[]>([]);
-  const [currentCard, setCurrentCard] = useState<VocabCard | null>(null);
+  // データ
+  const [allCards, setAllCards] = useState<VocabCard[]>([]);
+  const [csvWarnings, setCsvWarnings] = useState<string[]>([]);
+  const [usingSample, setUsingSample] = useState(false);
+  const allCasts = useMemo(() => groupCardsByCast(allCards), [allCards]);
+
+  // ナビゲーション（allVideos は selectedCast から導出）
+  const [screen, setScreen] = useState<Screen>('cast-list');
+  const [selectedCast, setSelectedCast] = useState<CastGroup | null>(null);
+  const [selectedVideo, setSelectedVideo] = useState<VideoGroup | null>(null);
+  const allVideos = selectedCast?.videos ?? [];
+
+  // 学習セッション
+  const [scopeId, setScopeId] = useState<string | null>(null);
+  const [scopeCards, setScopeCards] = useState<VocabCard[]>([]);
+  const [queue, setQueue] = useState<string[]>([]);
+  const [currentId, setCurrentId] = useState<string | null>(null);
   const [isFlipped, setIsFlipped] = useState(false);
-  const [mastered, setMastered] = useState<Set<string>>(new Set()); // 「余裕」にした単語のSet（セッション管理）
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const sessionDayRef = useRef(0); // 現セッションを組んだ日
+  const rateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null); // 450msスライド用
+
+  // 学習進捗（永続）
+  const [progress, setProgress] = useState<Record<string, CardProgress>>({});
+  const storeRef = useRef<LearningStore>(emptyStore());
+
+  // UI状態
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [showHelp, setShowHelp] = useState(false);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
-  const [isTransitioning, setIsTransitioning] = useState(false); // カード切り替え中かどうか
-  const [showVocabList, setShowVocabList] = useState(false); // 語彙一覧モーダルの表示状態
-  const [vocabListSource, setVocabListSource] = useState<VideoGroup | null>(null); // 一覧表示する動画
-  const [agencyOrder, setAgencyOrder] = useState<string[]>([]); // 事務所の並び順
-  const [showAgencyOrderModal, setShowAgencyOrderModal] = useState(false); // 並び順変更モーダルの表示状態
-  const [tempOrder, setTempOrder] = useState<string[]>([]); // 並び順変更モーダル用の一時的な並び順
-  const [checkedVocab, setCheckedVocab] = useState<Map<string, Set<string>>>(new Map()); // 動画IDをキーに、チェックした単語のSetを保存
-  const [vocabListFilter, setVocabListFilter] = useState<'all' | 'unchecked' | 'checked'>('all'); // 語彙一覧のフィルター状態
+  const [vocabListSource, setVocabListSource] = useState<VocabListSource | null>(null);
+  const [vocabListFilter, setVocabListFilter] = useState<'all' | 'unchecked' | 'checked'>('all');
+  const [agencyOrder, setAgencyOrder] = useState<string[]>([]);
+  const [showAgencyOrderModal, setShowAgencyOrderModal] = useState(false);
+  const [tempOrder, setTempOrder] = useState<string[]>([]);
 
-  // CSV解析関数
-  const parseCSV = (csvText: string): VocabCard[] => {
-    const lines = csvText.trim().split('\n');
-    if (lines.length < 2) {
-      throw new Error('CSVファイルが空です');
+  const cardMap = useMemo(() => new Map(allCards.map(c => [c.id, c])), [allCards]);
+  const currentCard = currentId ? cardMap.get(currentId) ?? null : null;
+  const today = todayLocal();
+  const dueTodayCount = useMemo(
+    () => countDue(allCards, progress, today),
+    [allCards, progress, today]
+  );
+
+  // 事務所グルーピングと表示順（キャスト一覧の描画・並び順モーダルで共用）
+  const agenciesMap = useMemo(() => {
+    const m = new Map<string, CastGroup[]>();
+    allCasts.forEach(cast => {
+      const name = cast.agency || '未分類';
+      if (!m.has(name)) m.set(name, []);
+      m.get(name)!.push(cast);
+    });
+    return m;
+  }, [allCasts]);
+
+  const sortedAgencyNames = useMemo(() => {
+    const names = Array.from(agenciesMap.keys());
+    return agencyOrder.length > 0
+      ? [
+          ...agencyOrder.filter(name => agenciesMap.has(name)),
+          ...names.filter(name => !agencyOrder.includes(name)).sort((a, b) => a.localeCompare(b, 'ja'))
+        ]
+      : [...names].sort((a, b) => a.localeCompare(b, 'ja'));
+  }, [agenciesMap, agencyOrder]);
+
+  // 保留中のスライドタイマーを破棄（セッション切替・離脱時の取り違え防止）
+  const cancelPendingRate = () => {
+    if (rateTimerRef.current !== null) {
+      clearTimeout(rateTimerRef.current);
+      rateTimerRef.current = null;
     }
-
-    const headers = lines[0].split(',').map(h => h.trim().replace(/^\ufeff/, '')); // BOM除去
-    const expectedHeaders6 = ['単語', '和訳', '難易度', '品詞', '文脈', '動画URL'];
-    const expectedHeaders7New = ['単語', '和訳', '文脈', '難易度', '品詞', '動画URL', '動画タイトル']; // 新形式
-    const expectedHeaders7Old = ['単語', '和訳', '難易度', '品詞', '文脈', '動画URL', '動画タイトル']; // 旧形式
-    const expectedHeaders9New = ['単語', '和訳', '文脈', '難易度', '品詞', '動画URL', '動画タイトル', '事務所', 'キャスト名']; // 9列形式（新・キャスト対応）
-    const expectedHeaders9Old = ['単語', '和訳', '難易度', '品詞', '文脈', '動画URL', '動画タイトル', '事務所', 'タレント']; // 9列形式（旧・キャスト対応）
-    const expectedHeaders9OldAlt = ['単語', '和訳', '難易度', '品詞', '文脈', '動画URL', '動画タイトル', '事務所', 'キャスト名']; // 9列形式（旧・キャスト名表記）
-
-    // ヘッダー検証（6列、7列、9列に対応）
-    const isValid6 = JSON.stringify(headers) === JSON.stringify(expectedHeaders6);
-    const isValid7New = JSON.stringify(headers) === JSON.stringify(expectedHeaders7New);
-    const isValid7Old = JSON.stringify(headers) === JSON.stringify(expectedHeaders7Old);
-    const isValid9New = JSON.stringify(headers) === JSON.stringify(expectedHeaders9New);
-    const isValid9Old = JSON.stringify(headers) === JSON.stringify(expectedHeaders9Old);
-    const isValid9OldAlt = JSON.stringify(headers) === JSON.stringify(expectedHeaders9OldAlt);
-    const isNew7Format = isValid7New; // 新7列形式かどうか
-    const isNew9Format = isValid9New; // 新9列形式かどうか
-    const isOld9Format = isValid9Old || isValid9OldAlt; // 旧9列形式かどうか
-
-    if (!isValid6 && !isValid7New && !isValid7Old && !isValid9New && !isValid9Old && !isValid9OldAlt) {
-      throw new Error(`列名が想定と異なります（実際: ${headers.join(',')}）`);
-    }
-
-    const data: VocabCard[] = [];
-    for (let i = 1; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (!line) continue;
-
-      // CSVのパース（ダブルクォートに対応）
-      const values: string[] = [];
-      let current = '';
-      let inQuotes = false;
-
-      for (let j = 0; j < line.length; j++) {
-        const char = line[j];
-        if (char === '"') {
-          if (inQuotes && line[j + 1] === '"') {
-            current += '"';
-            j++;
-          } else {
-            inQuotes = !inQuotes;
-          }
-        } else if (char === ',' && !inQuotes) {
-          values.push(current.trim());
-          current = '';
-        } else {
-          current += char;
-        }
-      }
-      values.push(current.trim());
-
-      if (values.length !== 6 && values.length !== 7 && values.length !== 9) {
-        console.warn(`行 ${i + 1} をスキップ: 列数が不正です（期待: 6, 7, または9列、実際: ${values.length}列）`);
-        continue;
-      }
-
-      // 列順に応じて値を割り当て
-      let 単語, 和訳, 難易度, 品詞, 文脈, 動画URL, 動画タイトル, 事務所, キャスト名;
-
-      if (isNew9Format) {
-        // 新9列形式: 単語,和訳,文脈,難易度,品詞,動画URL,動画タイトル,事務所,キャスト名
-        [単語, 和訳, 文脈, 難易度, 品詞, 動画URL, 動画タイトル, 事務所, キャスト名] = values;
-      } else if (isOld9Format) {
-        // 旧9列形式: 単語,和訳,難易度,品詞,文脈,動画URL,動画タイトル,事務所,タレント（またはキャスト名）
-        [単語, 和訳, 難易度, 品詞, 文脈, 動画URL, 動画タイトル, 事務所, キャスト名] = values;
-      } else if (isNew7Format) {
-        // 新7列形式: 単語,和訳,文脈,難易度,品詞,動画URL,動画タイトル
-        [単語, 和訳, 文脈, 難易度, 品詞, 動画URL, 動画タイトル] = values;
-      } else {
-        // 旧6/7列形式: 単語,和訳,難易度,品詞,文脈,動画URL,[動画タイトル]
-        [単語, 和訳, 難易度, 品詞, 文脈, 動画URL, 動画タイトル] = values;
-      }
-
-      if (難易度 !== '初級' && 難易度 !== '中級' && 難易度 !== '上級') {
-        console.warn(`行 ${i + 1} をスキップ: 難易度が不正です（${難易度}）`);
-        continue;
-      }
-
-      data.push({
-        単語,
-        和訳,
-        難易度: 難易度 as '初級' | '中級' | '上級',
-        品詞,
-        文脈,
-        動画URL,
-        動画タイトル: 動画タイトル || undefined,  // 7列目がない場合はundefined
-        事務所: 事務所 || undefined,             // 8列目（9列形式のみ）
-        キャスト名: キャスト名 || undefined       // 9列目（9列形式のみ）
-      });
-    }
-
-    if (data.length === 0) {
-      throw new Error('有効なデータが見つかりませんでした');
-    }
-
-    return data;
+    setIsTransitioning(false);
   };
 
-  // 動画ごとにカードをグループ化
-  const groupCardsByVideo = (cards: VocabCard[]): VideoGroup[] => {
-    const grouped = new Map<string, VideoGroup>();
-
-    cards.forEach(card => {
-      const videoId = extractYouTubeId(card.動画URL);
-      if (!videoId) {
-        console.warn('Invalid YouTube URL:', card.動画URL);
-        return;
-      }
-
-      if (!grouped.has(videoId)) {
-        grouped.set(videoId, {
-          id: videoId,
-          title: card.動画タイトル || `動画${grouped.size + 1}`,  // CSVからタイトル取得、なければフォールバック
-          url: card.動画URL,
-          thumbnailUrl: getThumbnailUrl(videoId),
-          cards: [],
-          wordCount: 0
-        });
-      }
-
-      const group = grouped.get(videoId)!;
-      group.cards.push(card);
-      group.wordCount++;
-    });
-
-    return Array.from(grouped.values());
+  // ストアへの書き込み（別タブの書き込みをマージしてから保存）
+  const commitStore = (nextCards: Record<string, CardProgress>, nextSession: ActiveSession | null) => {
+    const saved = saveStore({ ...storeRef.current, cards: nextCards, session: nextSession });
+    storeRef.current = saved;
+    setProgress(saved.cards);
   };
 
-  // キャスト名をURL用スラッグに変換
-  const createCastSlug = (castName: string): string => {
-    // URL安全な文字列に変換（日本語対応）
-    return encodeURIComponent(castName);
-  };
+  // デッキ適用（CSV成功/サンプルフォールバック共通）
+  // 注意: レガシー移行はサンプルデッキでは走らせない（実カードとID一致せず
+  // migratedLegacy だけ立って移行が焼き切れるため）
+  const applyDeck = (cards: VocabCard[], warnings: string[], sample: boolean) => {
+    setAllCards(cards);
+    setCsvWarnings(warnings);
+    setUsingSample(sample);
 
-  // キャストごとにカードをグループ化
-  const groupCardsByCast = (cards: VocabCard[]): CastGroup[] => {
-    // まず動画ごとにグループ化
-    const videoGroups = groupCardsByVideo(cards);
-
-    // キャストごとに動画をグループ化
-    const castMap = new Map<string, CastGroup>();
-
-    videoGroups.forEach(videoGroup => {
-      // この動画の最初のカードからキャスト情報を取得
-      const firstCard = videoGroup.cards[0];
-      const castName = firstCard?.キャスト名 || '未分類';
-      const agency = firstCard?.事務所;
-      const castId = createCastSlug(castName);
-
-      if (!castMap.has(castId)) {
-        castMap.set(castId, {
-          id: castId,
-          name: castName,
-          agency: agency,
-          videos: [],
-          wordCount: 0,
-          thumbnailUrl: videoGroup.thumbnailUrl // 最初の動画のサムネイル
-        });
-      }
-
-      const castGroup = castMap.get(castId)!;
-      castGroup.videos.push(videoGroup);
-      castGroup.wordCount += videoGroup.wordCount;
-    });
-
-    // 事務所でソート（事務所名の昇順、未分類は最後）
-    return Array.from(castMap.values()).sort((a, b) => {
-      const agencyA = a.agency || 'ZZZZ未分類'; // 未分類を最後に
-      const agencyB = b.agency || 'ZZZZ未分類';
-      return agencyA.localeCompare(agencyB, 'ja');
-    });
+    let store = loadStore();
+    if (!sample) {
+      const migrated = migrateLegacyChecked(store, cards, todayLocal());
+      store = migrated === store ? store : saveStore(migrated);
+    }
+    storeRef.current = store;
+    setProgress(store.cards);
   };
 
   // CSV読み込み
   const loadCSV = async () => {
-    const timestamp = new Date().toISOString();
-    console.log('[CSV_LOAD]', {
-      operation: 'loadCSV',
-      url: DEFAULT_CSV_URL,
-      status: 'start',
-      timestamp
-    });
-
+    devLog('[CSV_LOAD]', { operation: 'loadCSV', url: DEFAULT_CSV_URL, status: 'start' });
     try {
       setLoading(true);
-      setError(null);
       const response = await fetch(DEFAULT_CSV_URL);
-
       if (!response.ok) {
         throw new Error('CSVの取得に失敗しました');
       }
-
       const text = await response.text();
-      const parsedCards = parseCSV(text);
-
-      // キャストごとにグループ化（内部で動画ごとにもグループ化される）
-      const castGroups = groupCardsByCast(parsedCards);
-      setAllCasts(castGroups);
-      setCards(parsedCards);
-
-      console.log('[CSV_LOAD]', {
+      const { cards, warnings } = parseVocabCsv(text);
+      applyDeck(cards, warnings, false);
+      warnings.forEach(w => console.warn('[CSV_WARN]', w));
+      devLog('[CSV_LOAD]', {
         operation: 'loadCSV',
         status: 'success',
-        cardCount: parsedCards.length,
-        castCount: castGroups.length,
-        videoCount: castGroups.reduce((sum, cast) => sum + cast.videos.length, 0),
-        timestamp: new Date().toISOString()
+        cardCount: cards.length,
+        warningCount: warnings.length
       });
     } catch (err) {
       console.error('[CSV_LOAD]', {
         operation: 'loadCSV',
         status: 'error',
         error: err instanceof Error ? err.message : '不明なエラー',
-        errorStack: err instanceof Error ? err.stack : undefined,
-        fallback: 'SAMPLE_DATA',
-        timestamp: new Date().toISOString()
+        fallback: 'SAMPLE_DATA'
       });
-      setError(err instanceof Error ? err.message : '不明なエラーが発生しました');
-      setCards(SAMPLE_DATA); // フォールバック
+      applyDeck(attachCardIds(SAMPLE_DATA), [], true);
     } finally {
       setLoading(false);
     }
   };
 
-  // 音声設定を読み込み
-  const loadAudioSetting = () => {
+  // 設定読み込み
+  const loadSettings = () => {
     const audioStored = localStorage.getItem(AUDIO_ENABLED_KEY);
-    if (audioStored) {
-      setAudioEnabled(audioStored === 'true');
-    }
-  };
+    if (audioStored) setAudioEnabled(audioStored === 'true');
 
-  // テーマ設定を読み込み
-  const loadThemeSetting = () => {
     const savedTheme = localStorage.getItem(THEME_PREFERENCE_KEY);
     if (savedTheme === 'light' || savedTheme === 'dark') {
       setTheme(savedTheme);
     } else {
-      // localStorageに設定がない場合、OS設定を自動検出
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       setTheme(prefersDark ? 'dark' : 'light');
     }
-  };
 
-  // 事務所の並び順を読み込み
-  const loadAgencyOrder = () => {
     const savedOrder = localStorage.getItem(AGENCY_ORDER_KEY);
     if (savedOrder) {
       try {
         const parsed = JSON.parse(savedOrder);
-        if (Array.isArray(parsed)) {
-          setAgencyOrder(parsed);
-        }
+        if (Array.isArray(parsed)) setAgencyOrder(parsed);
       } catch (e) {
         console.error('Failed to parse agency order:', e);
       }
     }
   };
 
-  // 事務所の並び順を保存
-  const saveAgencyOrder = (order: string[]) => {
-    setAgencyOrder(order);
-    localStorage.setItem(AGENCY_ORDER_KEY, JSON.stringify(order));
-  };
+  // 学習セッション開始（同日・同スコープの保存済みセッションがあればサニタイズして復帰）
+  const enterStudy = (sid: string, cardsInScope: VocabCard[]) => {
+    cancelPendingRate();
+    const day = todayLocal();
+    const saved = storeRef.current.session;
+    const scopeIds = new Set(cardsInScope.map(c => c.id));
 
-  // チェック済み語彙を読み込み
-  const loadCheckedVocab = () => {
-    const saved = localStorage.getItem(VOCABULARY_CHECKED_KEY);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        const map = new Map<string, Set<string>>();
-        Object.keys(parsed).forEach(videoId => {
-          map.set(videoId, new Set(parsed[videoId]));
-        });
-        setCheckedVocab(map);
-      } catch (e) {
-        console.error('Failed to parse checked vocabulary:', e);
-      }
+    let q: string[] = [];
+    if (saved && saved.scopeId === sid && saved.day === day) {
+      // masteredになったカード・スコープ外・デッキから消えたカードを除外して復帰
+      q = sanitizeQueue(saved.queue, scopeIds, storeRef.current.cards);
     }
+    if (q.length === 0) {
+      const built = sid === 'review'
+        ? buildReviewSet(allCards, storeRef.current.cards, day)
+        : buildStudySet(cardsInScope, storeRef.current.cards, day);
+      q = built.queue;
+    }
+
+    sessionDayRef.current = day;
+    setScopeId(sid);
+    setScopeCards(cardsInScope);
+    setQueue(q);
+    setCurrentId(q[0] ?? null);
+    setIsFlipped(false);
+    setScreen('study');
+
+    commitStore(storeRef.current.cards, makeSession(sid, day, q));
   };
 
-  // チェック済み語彙を保存
-  const saveCheckedVocab = (map: Map<string, Set<string>>) => {
-    const obj: Record<string, string[]> = {};
-    map.forEach((wordSet, videoId) => {
-      obj[videoId] = Array.from(wordSet);
+  // 評価処理（Leitner + 再挿入キュー）
+  const handleRate = (type: Rating) => {
+    if (!currentId || isTransitioning || !scopeId) return;
+
+    const day = todayLocal();
+    const prev = storeRef.current.cards[currentId];
+    const nextProgress = { ...storeRef.current.cards, [currentId]: applyRating(prev, type, day) };
+    const rest = queue.slice(1);
+    const nextQueue = reinsert(rest, currentId, type);
+
+    devLog('[CARD_RATE]', {
+      operation: 'handleRate',
+      cardId: currentId,
+      rating: type,
+      box: nextProgress[currentId].box,
+      state: nextProgress[currentId].state,
+      remaining: nextQueue.length
     });
-    localStorage.setItem(VOCABULARY_CHECKED_KEY, JSON.stringify(obj));
-    setCheckedVocab(map);
-  };
 
-  // 語彙のチェック状態をトグル
-  const toggleVocabCheck = (videoId: string, word: string) => {
-    const newMap = new Map(checkedVocab);
-    if (!newMap.has(videoId)) {
-      newMap.set(videoId, new Set());
-    }
-    const wordSet = newMap.get(videoId)!;
-    if (wordSet.has(word)) {
-      wordSet.delete(word);
-    } else {
-      wordSet.add(word);
-    }
-    saveCheckedVocab(newMap);
-  };
+    setQueue(nextQueue);
+    commitStore(nextProgress, makeSession(scopeId, sessionDayRef.current, nextQueue));
 
-  // シンプルなカード選択（「余裕」以外からランダム）
-  const selectNextCard = (allCards: VocabCard[], currentMastered: Set<string> = mastered): VocabCard | null => {
-    // 「余裕」にしていないカードをフィルター
-    const availableCards = allCards.filter(card => !currentMastered.has(card.単語));
-
-    if (availableCards.length === 0) {
-      return null; // 全て「余裕」になった
-    }
-
-    // ランダムに選択
-    const selected = availableCards[Math.floor(Math.random() * availableCards.length)];
-    console.log('[CARD_SELECT]', {
-      operation: 'selectNextCard',
-      word: selected.単語,
-      remaining: availableCards.length,
-      total: allCards.length,
-      timestamp: new Date().toISOString()
-    });
-    return selected;
-  };
-
-  // 評価処理（スライドアニメーション対応版）
-  const handleRate = (type: 'again' | 'ok' | 'easy') => {
-    if (!currentCard || isTransitioning) return; // 遷移中は無視
-
-    const word = currentCard.単語;
-
-    // 「余裕」の場合のみ、masteredに追加
-    if (type === 'easy') {
-      const newMastered = new Set(mastered);
-      newMastered.add(word);
-
-      console.log('[CARD_RATE]', {
-        operation: 'handleRate',
-        word,
-        rating: 'easy',
-        mastered: true,
-        remaining: cards.length - newMastered.size,
-        timestamp: new Date().toISOString()
-      });
-
-      // スライドアニメーション開始
-      setIsTransitioning(true);
-      setIsFlipped(false); // フリップ状態をリセット
-
-      // 450ms後に次のカードをセット（アニメーション400ms + 50msバッファ）
-      setTimeout(() => {
-        setMastered(newMastered);
-        const nextCard = selectNextCard(cards, newMastered);
-        setCurrentCard(nextCard);
-        setIsTransitioning(false);
-      }, 450);
-    } else {
-      console.log('[CARD_RATE]', {
-        operation: 'handleRate',
-        word,
-        rating: type,
-        mastered: false,
-        timestamp: new Date().toISOString()
-      });
-
-      // スライドアニメーション開始
-      setIsTransitioning(true);
-      setIsFlipped(false); // フリップ状態をリセット
-
-      // 450ms後に次のカードをセット（アニメーション400ms + 50msバッファ）
-      setTimeout(() => {
-        const nextCard = selectNextCard(cards);
-        setCurrentCard(nextCard);
-        setIsTransitioning(false);
-      }, 450);
-    }
-  };
-
-  // 音声読み上げ
-  const speakWord = (word: string) => {
-    if (!audioEnabled) return;
-    if (!('speechSynthesis' in window)) return;
-
-    const utterance = new SpeechSynthesisUtterance(word);
-    utterance.lang = 'en-US';
-    utterance.rate = 0.9;
-    speechSynthesis.speak(utterance);
+    // スライドアニメーション（400ms + 50msバッファ）
+    setIsTransitioning(true);
+    setIsFlipped(false);
+    rateTimerRef.current = setTimeout(() => {
+      rateTimerRef.current = null;
+      setCurrentId(nextQueue[0] ?? null);
+      setIsTransitioning(false);
+    }, 450);
   };
 
   // カードフリップ
   const handleFlip = () => {
-    if (!isFlipped && currentCard) {
-      speakWord(currentCard.単語);
+    if (!isFlipped && currentCard && audioEnabled) {
+      speakNow(currentCard.単語);
     }
     setIsFlipped(!isFlipped);
   };
@@ -554,126 +692,189 @@ function App() {
     localStorage.setItem(THEME_PREFERENCE_KEY, newTheme);
   };
 
-  // 進捗リセット（セッションリセット）
-  const handleReset = () => {
-    const message = 'この セッションの進捗をリセットしてもよろしいですか？\n（「余裕」にした単語が全て再表示されます）';
-
-    if (confirm(message)) {
-      const emptySet = new Set<string>();
-      setMastered(emptySet); // 「余裕」リストをクリア
-
-      if (cards.length > 0) {
-        const nextCard = selectNextCard(cards, emptySet);
-        setCurrentCard(nextCard);
-      }
-    }
-  };
-
-  // キャスト選択
-  const handleSelectCast = (cast: CastGroup) => {
-    setSelectedCast(cast);
-    setAllVideos(cast.videos); // 選択されたキャストの動画一覧を設定
-    setScreen('video-list');
-    // URLパラメータを更新
-    window.history.pushState({}, '', `?cast=${cast.id}`);
-  };
-
-  // 動画選択
-  const handleSelectVideo = (video: VideoGroup) => {
-    setSelectedVideo(video);
-    setCards(video.cards);
-    setScreen('study');
-    setIsFlipped(false);
-    setCurrentCard(null);
-    setMastered(new Set()); // セッションリセット
-    // URLパラメータを更新
-    window.history.pushState({}, '', `?video=${video.id}`);
-  };
-
-  // 全ての動画を学習（キャスト一覧から）
-  const handleSelectAllCasts = () => {
-    setSelectedCast(null);
-    setSelectedVideo(null);
-    const allCards = allCasts.flatMap(cast => cast.videos.flatMap(v => v.cards));
-    setCards(allCards);
-    setScreen('study');
-    setIsFlipped(false);
-    setCurrentCard(null);
-    setMastered(new Set()); // セッションリセット
-  };
-
-  // 全ての動画を学習（動画一覧から、キャスト内）
-  const handleSelectAllVideos = () => {
-    setSelectedVideo(null);
-    setCards(allVideos.flatMap(v => v.cards));
-    setScreen('study');
-    setIsFlipped(false);
-    setCurrentCard(null);
-    setMastered(new Set()); // セッションリセット
-  };
-
-  // キャスト一覧に戻る
-  const handleBackToCastList = () => {
+  // ナビゲーション（show* はURLを更新しない。handle* はURL更新も行う）
+  const showCastList = () => {
+    cancelPendingRate();
     setScreen('cast-list');
     setSelectedCast(null);
     setSelectedVideo(null);
-    setAllVideos([]);
-    setCurrentCard(null);
+    setScopeId(null);
+    setCurrentId(null);
     setIsFlipped(false);
-    // URLパラメータをクリア
-    window.history.pushState({}, '', window.location.pathname);
   };
 
-  // 動画一覧に戻る
+  const showCast = (cast: CastGroup) => {
+    setSelectedCast(cast);
+    setSelectedVideo(null);
+    setScreen('video-list');
+  };
+
+  const showVideo = (video: VideoGroup) => {
+    // 戻る導線のためにキャストを逆引きして常にセットする（?video= 直リンク対応）
+    const cast = allCasts.find(c => c.videos.some(v => v.id === video.id)) ?? null;
+    if (cast) setSelectedCast(cast);
+    setSelectedVideo(video);
+    enterStudy(`video:${video.id}`, video.cards);
+  };
+
+  const handleSelectCast = (cast: CastGroup) => {
+    showCast(cast);
+    window.history.pushState({}, '', `?cast=${cast.id}`);
+  };
+
+  const handleSelectVideo = (video: VideoGroup) => {
+    showVideo(video);
+    window.history.pushState({}, '', `?video=${video.id}`);
+  };
+
+  const handleSelectAllCasts = () => {
+    setSelectedCast(null);
+    setSelectedVideo(null);
+    enterStudy('all', allCards);
+    window.history.replaceState({}, '', window.location.pathname);
+  };
+
+  const handleSelectAllVideos = () => {
+    if (!selectedCast) return;
+    setSelectedVideo(null);
+    enterStudy(`cast:${selectedCast.name}`, allVideos.flatMap(v => v.cards));
+  };
+
+  const handleStartReview = () => {
+    setSelectedCast(null);
+    setSelectedVideo(null);
+    enterStudy('review', allCards);
+    window.history.replaceState({}, '', window.location.pathname);
+  };
+
+  // 「戻る」系は履歴を積まない（replaceState。ブラウザ戻ると喧嘩しないため）
+  const handleBackToCastList = () => {
+    showCastList();
+    window.history.replaceState({}, '', window.location.pathname);
+  };
+
   const handleBackToVideoList = () => {
+    cancelPendingRate();
     setScreen('video-list');
     setSelectedVideo(null);
-    setCurrentCard(null);
+    setScopeId(null);
+    setCurrentId(null);
     setIsFlipped(false);
-    // URLパラメータを更新（castのみ残す）
     if (selectedCast) {
-      window.history.pushState({}, '', `?cast=${selectedCast.id}`);
+      window.history.replaceState({}, '', `?cast=${selectedCast.id}`);
+    }
+  };
+
+  // 学習画面からの戻り先
+  const handleBackFromStudy = () => {
+    if (selectedCast) {
+      handleBackToVideoList();
+    } else {
+      handleBackToCastList();
     }
   };
 
   // インストールバナーを閉じる
   const handleDismissInstallBanner = () => {
     setShowInstallBanner(false);
-    localStorage.setItem('install_banner_dismissed', 'true');
+    localStorage.setItem(INSTALL_BANNER_DISMISSED_KEY, 'true');
   };
 
-  // 語彙一覧を開く（ギャラリーから）
+  // 語彙一覧
+  const openVocabList = (title: string, cards: VocabCard[]) => {
+    setVocabListSource({ title, cards });
+    setVocabListFilter('all');
+  };
+
   const handleOpenVocabListFromGallery = (video: VideoGroup, e: React.MouseEvent) => {
-    e.stopPropagation(); // 動画選択をキャンセル
-    setVocabListSource(video);
-    setShowVocabList(true);
+    e.stopPropagation();
+    openVocabList(video.title, video.cards);
   };
 
-  // 語彙一覧を開く（学習画面から）
   const handleOpenVocabListFromStudy = () => {
-    if (selectedVideo) {
-      setVocabListSource(selectedVideo);
+    if (scopeId === 'review') {
+      // 復習セッションでは「今日のキューに残っているカード」だけを見せる
+      const cards = queue
+        .map(id => cardMap.get(id))
+        .filter((c): c is VocabCard => c !== undefined);
+      openVocabList('今日の復習', cards);
     } else {
-      // 「全ての動画」の場合
-      setVocabListSource({
-        id: 'all',
-        title: '全ての動画',
-        url: '',
-        thumbnailUrl: '',
-        cards: cards,
-        wordCount: cards.length
-      });
+      openVocabList(selectedVideo ? selectedVideo.title : '語彙一覧', scopeCards);
     }
-    setShowVocabList(true);
   };
 
-  // 語彙一覧を閉じる
   const handleCloseVocabList = () => {
-    setShowVocabList(false);
     setVocabListSource(null);
   };
 
-  // 並び順を上に移動
+  // 「覚えた」チェック = mastered の手動スイッチ
+  const toggleVocabCheck = (card: VocabCard) => {
+    const day = todayLocal();
+    const prev = storeRef.current.cards[card.id];
+    const next = isMastered(prev) ? setUnlearnedManually(prev, day) : setMasteredManually(prev, day);
+    const nextCards = { ...storeRef.current.cards, [card.id]: next };
+
+    let session = storeRef.current.session;
+
+    if (next.state === 'mastered') {
+      // ライブのキューからも即時除外
+      if (screen === 'study' && queue.includes(card.id)) {
+        const nextQueue = queue.filter(id => id !== card.id);
+        setQueue(nextQueue);
+        if (currentId === card.id || rateTimerRef.current !== null) {
+          // 表示中カード or 保留タイマーの対象が変わるため、即座に付け替える
+          cancelPendingRate();
+          setCurrentId(nextQueue[0] ?? null);
+          setIsFlipped(false);
+        }
+        if (scopeId) session = makeSession(scopeId, sessionDayRef.current, nextQueue);
+      } else if (session && session.queue.includes(card.id)) {
+        // 学習画面の外からでも、保存済みセッションのキューには反映する
+        session = makeSession(session.scopeId, session.day, session.queue.filter(id => id !== card.id));
+      }
+    }
+
+    commitStore(nextCards, session);
+  };
+
+  // 進捗エクスポート/インポート
+  const buildExport = () => exportProgress(storeRef.current);
+  const doImport = (text: string): boolean => {
+    const imported = importProgress(storeRef.current, text);
+    if (!imported) return false;
+
+    let session = imported.session;
+    if (screen === 'study' && scopeId) {
+      // インポートでmasteredになったカードをライブのキューからも外す
+      const scopeIds = new Set(scopeCards.map(c => c.id));
+      const nextQueue = sanitizeQueue(queue, scopeIds, imported.cards);
+      if (nextQueue.length !== queue.length) {
+        setQueue(nextQueue);
+        if (currentId && !nextQueue.includes(currentId) && rateTimerRef.current === null && isMastered(imported.cards[currentId])) {
+          setCurrentId(nextQueue[0] ?? null);
+          setIsFlipped(false);
+        }
+      }
+      session = makeSession(scopeId, sessionDayRef.current, nextQueue);
+    } else if (session) {
+      session = makeSession(
+        session.scopeId,
+        session.day,
+        session.queue.filter(id => !isMastered(imported.cards[id]))
+      );
+    }
+
+    storeRef.current = saveStore({ ...imported, session });
+    setProgress(storeRef.current.cards);
+    return true;
+  };
+
+  // 事務所並び順
+  const saveAgencyOrder = (order: string[]) => {
+    setAgencyOrder(order);
+    localStorage.setItem(AGENCY_ORDER_KEY, JSON.stringify(order));
+  };
+
   const moveAgencyUp = (index: number) => {
     if (index === 0) return;
     const newOrder = [...tempOrder];
@@ -681,7 +882,6 @@ function App() {
     setTempOrder(newOrder);
   };
 
-  // 並び順を下に移動
   const moveAgencyDown = (index: number) => {
     if (index === tempOrder.length - 1) return;
     const newOrder = [...tempOrder];
@@ -689,7 +889,6 @@ function App() {
     setTempOrder(newOrder);
   };
 
-  // 並び順を保存
   const handleSaveAgencyOrder = () => {
     saveAgencyOrder(tempOrder);
     setShowAgencyOrderModal(false);
@@ -702,203 +901,116 @@ function App() {
 
   // 初期化
   useEffect(() => {
-    loadAudioSetting();
-    loadThemeSetting();
-    loadAgencyOrder();
-    loadCheckedVocab();
+    loadSettings();
     loadCSV();
 
-    // PWAインストールバナー表示（初回アクセス時のみ）
-    const installBannerDismissed = localStorage.getItem('install_banner_dismissed');
-    if (!installBannerDismissed) {
+    // PWAインストールバナー（初回のみ・すでにインストール済みなら出さない）
+    const dismissed = localStorage.getItem(INSTALL_BANNER_DISMISSED_KEY);
+    const isStandalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      (navigator as Navigator & { standalone?: boolean }).standalone === true;
+    if (!dismissed && !isStandalone) {
       setTimeout(() => setShowInstallBanner(true), 3000);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // URLパラメータ処理（キャスト・動画の直接アクセス）
+  // URLパラメータ処理（キャスト・動画の直接アクセス + 戻る/進む）
   useEffect(() => {
     if (allCasts.length === 0) return;
 
-    const params = new URLSearchParams(window.location.search);
-    const castParam = params.get('cast');
-    const videoParam = params.get('video');
-
-    if (castParam) {
-      // ?cast=xxx でキャスト選択
-      const cast = allCasts.find(c => c.id === castParam);
-      if (cast) {
-        handleSelectCast(cast);
-      }
-    } else if (videoParam) {
-      // ?video=xxx で動画選択
-      const allVideos = allCasts.flatMap(c => c.videos);
-      const video = allVideos.find(v => v.id === videoParam);
-      if (video) {
-        handleSelectVideo(video);
-      }
-    }
-
-    // popstateイベント（戻る/進むボタン）のリスナー
-    const handlePopState = () => {
+    // fromPop=false（初回・再読込後）: パラメータが有効なときだけ画面を合わせる。
+    //   無効な古いリンクはURLだけ整えて現画面を保つ（再試行等でのeffect再発火時に
+    //   学習中のユーザーを強制排出しないため）
+    // fromPop=true（ブラウザ戻る/進む）: パラメータなし = ホームへ
+    const applyParams = (fromPop: boolean) => {
       const params = new URLSearchParams(window.location.search);
       const castParam = params.get('cast');
       const videoParam = params.get('video');
 
-      if (!castParam && !videoParam) {
-        // パラメータなし → キャスト一覧に戻る
-        handleBackToCastList();
-      } else if (castParam && !videoParam) {
-        // cast のみ → 動画一覧に戻る
-        const cast = allCasts.find(c => c.id === castParam);
-        if (cast) {
-          handleSelectCast(cast);
+      if (videoParam) {
+        const video = allCasts.flatMap(c => c.videos).find(v => v.id === videoParam);
+        if (video) {
+          showVideo(video);
+          return;
         }
+      }
+      if (castParam) {
+        const cast = allCasts.find(c => c.name === castParam || c.id === castParam);
+        if (cast) {
+          showCast(cast);
+          return;
+        }
+      }
+      if (fromPop) {
+        showCastList();
+      } else if (castParam || videoParam) {
+        window.history.replaceState({}, '', window.location.pathname);
       }
     };
 
+    applyParams(false);
+
+    const handlePopState = () => applyParams(true);
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allCasts]);
-
-  // カードが読み込まれたら最初のカードを選択
-  useEffect(() => {
-    if (cards.length > 0 && !currentCard) {
-      const nextCard = selectNextCard(cards, mastered);
-      setCurrentCard(nextCard);
-    }
-  }, [cards, currentCard, mastered]);
 
   // 並び順モーダルが開いたときにtempOrderを初期化
   useEffect(() => {
-    if (showAgencyOrderModal && allCasts.length > 0) {
-      // 事務所ごとにグループ化
-      const agencies = new Map<string, CastGroup[]>();
-      allCasts.forEach(cast => {
-        const agencyName = cast.agency || '未分類';
-        if (!agencies.has(agencyName)) {
-          agencies.set(agencyName, []);
-        }
-        agencies.get(agencyName)!.push(cast);
-      });
-
-      // 現在の並び順を取得（stateまたはデフォルト）
-      const currentOrder = agencyOrder.length > 0
-        ? agencyOrder.filter(name => agencies.has(name))
-        : Array.from(agencies.keys()).sort((a, b) => a.localeCompare(b, 'ja'));
-
-      // 設定にない事務所を追加
-      const allAgencyNames = Array.from(agencies.keys());
-      const missingAgencies = allAgencyNames.filter(name => !currentOrder.includes(name));
-      const fullOrder = [...currentOrder, ...missingAgencies.sort((a, b) => a.localeCompare(b, 'ja'))];
-
-      setTempOrder(fullOrder);
+    if (showAgencyOrderModal && sortedAgencyNames.length > 0) {
+      setTempOrder(sortedAgencyNames);
     }
-  }, [showAgencyOrderModal, allCasts, agencyOrder]);
+  }, [showAgencyOrderModal, sortedAgencyNames]);
 
-  // 難易度に応じた色を取得
-  const getLevelColor = (level: string): string => {
-    switch (level) {
-      case '初級': return 'var(--level-beginner)';
-      case '中級': return 'var(--level-intermediate)';
-      case '上級': return 'var(--level-advanced)';
-      default: return '#888';
-    }
-  };
+  // 共通ヘッダーボタン群
+  const headerButtons = (
+    <>
+      {'speechSynthesis' in window && (
+        <button onClick={toggleAudio} className="icon-button" title="音声読み上げ">
+          <AudioIcon enabled={audioEnabled} />
+        </button>
+      )}
+      <button onClick={toggleTheme} className="icon-button" title="テーマ切り替え">
+        <ThemeToggleIcon theme={theme} />
+      </button>
+      <button onClick={() => setShowHelp(true)} className="icon-button" title="使い方">
+        ?
+      </button>
+    </>
+  );
 
-  // 語彙一覧モーダルコンポーネント
-  const VocabListModal = () => {
-    if (!showVocabList || !vocabListSource) return null;
+  const helpModal = showHelp && (
+    <HelpModal onClose={() => setShowHelp(false)} buildExport={buildExport} doImport={doImport} />
+  );
 
-    // ESCキーでモーダルを閉じる
-    useEffect(() => {
-      const handleEsc = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') {
-          handleCloseVocabList();
-        }
-      };
-      document.addEventListener('keydown', handleEsc);
-      return () => document.removeEventListener('keydown', handleEsc);
-    }, []);
+  const vocabListModal = vocabListSource && (
+    <VocabListModal
+      title={vocabListSource.title}
+      cards={vocabListSource.cards}
+      progress={progress}
+      filter={vocabListFilter}
+      onFilterChange={setVocabListFilter}
+      onToggle={toggleVocabCheck}
+      onClose={handleCloseVocabList}
+    />
+  );
 
-    // フィルター適用
-    const videoId = vocabListSource.id;
-    const checkedWords = checkedVocab.get(videoId) || new Set<string>();
+  const sampleBanner = usingSample && (
+    <div className="warning-banner">
+      ⚠️ CSVの読み込みに失敗しました。サンプルデータを表示しています。
+      <button onClick={loadCSV} className="btn-link">再試行</button>
+    </div>
+  );
 
-    const filteredCards = vocabListSource.cards.filter(card => {
-      const isChecked = checkedWords.has(card.単語);
-      if (vocabListFilter === 'checked') return isChecked;
-      if (vocabListFilter === 'unchecked') return !isChecked;
-      return true; // 'all'
-    });
+  const warningsBanner = csvWarnings.length > 0 && (
+    <div className="warning-banner">
+      ⚠️ 語彙データに{csvWarnings.length}件の問題があります（詳細はブラウザのコンソール）
+    </div>
+  );
 
-    return (
-      <div className="vocab-list-modal-overlay" onClick={handleCloseVocabList}>
-        <div className="vocab-list-modal-content" onClick={(e) => e.stopPropagation()}>
-          {/* ヘッダー */}
-          <div className="vocab-list-header">
-            <h2>📋 語彙一覧</h2>
-            <button className="vocab-list-close" onClick={handleCloseVocabList}>
-              ×
-            </button>
-          </div>
-
-          {/* フィルターボタン */}
-          <div className="vocab-filter-buttons">
-            <button
-              className={`vocab-filter-btn ${vocabListFilter === 'all' ? 'active' : ''}`}
-              onClick={() => setVocabListFilter('all')}
-            >
-              全て ({vocabListSource.cards.length})
-            </button>
-            <button
-              className={`vocab-filter-btn ${vocabListFilter === 'unchecked' ? 'active' : ''}`}
-              onClick={() => setVocabListFilter('unchecked')}
-            >
-              未チェック ({vocabListSource.cards.length - checkedWords.size})
-            </button>
-            <button
-              className={`vocab-filter-btn ${vocabListFilter === 'checked' ? 'active' : ''}`}
-              onClick={() => setVocabListFilter('checked')}
-            >
-              チェック済み ({checkedWords.size})
-            </button>
-          </div>
-
-          {/* テーブル */}
-          <div className="vocab-list-table-wrapper">
-            <table className="vocab-list-table">
-              <thead>
-                <tr>
-                  <th className="vocab-checkbox-col">覚えた</th>
-                  <th>単語</th>
-                  <th>和訳</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredCards.map((card, index) => {
-                  const isChecked = checkedWords.has(card.単語);
-                  return (
-                    <tr key={index} className={isChecked ? 'vocab-checked' : ''}>
-                      <td className="vocab-checkbox-col">
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => toggleVocabCheck(videoId, card.単語)}
-                          className="vocab-checkbox"
-                        />
-                      </td>
-                      <td className="vocab-word">{card.単語}</td>
-                      <td className="vocab-translation">{card.和訳}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    );
-  };
+  const installBanner = showInstallBanner && <InstallBanner onDismiss={handleDismissInstallBanner} />;
 
   // ローディング画面
   if (loading) {
@@ -912,53 +1024,12 @@ function App() {
     );
   }
 
-  // エラー画面
-  if (error && cards.length === 0) {
-    return (
-      <div className="app">
-        <div className="error-screen">
-          <div className="error-icon">⚠️</div>
-          <h2>読み込みに失敗しました</h2>
-          <p className="error-message">{error}</p>
-          <div className="error-buttons">
-            <button onClick={loadCSV} className="btn-retry">再試行</button>
-            <button onClick={() => { setError(null); setCards(SAMPLE_DATA); }} className="btn-sample">
-              サンプルで試す
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   // キャスト一覧画面
   if (screen === 'cast-list' && allCasts.length > 0) {
     const totalWords = allCasts.reduce((sum, cast) => sum + cast.wordCount, 0);
 
-    // 事務所ごとにグループ化
-    const agencies = new Map<string, CastGroup[]>();
-    allCasts.forEach(cast => {
-      const agencyName = cast.agency || '未分類';
-      if (!agencies.has(agencyName)) {
-        agencies.set(agencyName, []);
-      }
-      agencies.get(agencyName)!.push(cast);
-    });
-
-    // 事務所の並び順を決定（ユーザー設定 → デフォルト順）
-    const agencyNames = Array.from(agencies.keys());
-    const sortedAgencies = agencyOrder.length > 0
-      ? [
-          // ユーザー設定の順序で並べる
-          ...agencyOrder.filter(name => agencies.has(name)),
-          // 設定にない事務所はアルファベット順で最後に追加
-          ...agencyNames.filter(name => !agencyOrder.includes(name)).sort((a, b) => a.localeCompare(b, 'ja'))
-        ]
-      : agencyNames.sort((a, b) => a.localeCompare(b, 'ja')); // デフォルトはアルファベット順
-
     return (
       <div className="app">
-        {/* ヘッダー */}
         <header className="header">
           <div className="header-left">
             <img src="/channel-logo.jpg" alt="Vlingual Channel" className="logo" />
@@ -972,63 +1043,66 @@ function App() {
             >
               ⚙️
             </button>
-            {'speechSynthesis' in window && (
-              <button onClick={toggleAudio} className="icon-button" title="音声読み上げ">
-                <AudioIcon enabled={audioEnabled} />
-              </button>
-            )}
-            <button onClick={toggleTheme} className="icon-button" title="テーマ切り替え">
-              <ThemeToggleIcon theme={theme} />
-            </button>
-            <button onClick={() => setShowHelp(true)} className="icon-button" title="使い方">
-              ?
-            </button>
+            {headerButtons}
           </div>
         </header>
 
-        {/* キャスト一覧コンテンツ */}
         <main className="gallery-container">
-          <h2 className="gallery-title">📚 動画一覧</h2>
+          {sampleBanner}
+          {warningsBanner}
 
-          {/* 事務所ごとにセクション分け */}
-          {sortedAgencies.map((agencyName) => {
-            const casts = agencies.get(agencyName)!;
+          {/* 今日の復習 */}
+          {dueTodayCount > 0 && (
+            <button className="review-entry" onClick={handleStartReview}>
+              <span className="review-entry-icon">🔁</span>
+              <span className="review-entry-body">
+                <span className="review-entry-title">今日の復習 {dueTodayCount}枚</span>
+                <span className="review-entry-subtitle">前に学んだ単語をサッと確認しましょう</span>
+              </span>
+            </button>
+          )}
+
+          <h2 className="gallery-title">🎤 キャスト一覧</h2>
+
+          {sortedAgencyNames.map((agencyName) => {
+            const casts = agenciesMap.get(agencyName)!;
             return (
               <div key={agencyName} className="agency-section">
                 <h3 className="agency-name">{agencyName}</h3>
                 <div className="video-grid">
-                  {casts.map(cast => (
-                  <div
-                    key={cast.id}
-                    className="video-card"
-                    onClick={() => handleSelectCast(cast)}
-                  >
-                    <img
-                      src={cast.thumbnailUrl}
-                      alt={cast.name}
-                      className="video-thumbnail"
-                      loading="lazy"
-                    />
-                    <div className="video-info">
-                      <h3 className="video-title">{cast.name}</h3>
-                      <p className="video-word-count">
-                        🎬 {cast.videos.length}本 • 📖 {cast.wordCount}語
-                      </p>
-                    </div>
-                  </div>
-                  ))}
+                  {casts.map(cast => {
+                    const castCards = cast.videos.flatMap(v => v.cards);
+                    const masteredCount = countMastered(castCards, progress);
+                    return (
+                      <div
+                        key={cast.id}
+                        className="video-card"
+                        onClick={() => handleSelectCast(cast)}
+                      >
+                        <img
+                          src={cast.thumbnailUrl}
+                          alt={cast.name}
+                          className="video-thumbnail"
+                          loading="lazy"
+                        />
+                        <div className="video-info">
+                          <h3 className="video-title">{cast.name}</h3>
+                          <p className="video-word-count">
+                            🎬 {cast.videos.length}本 • 📖 {cast.wordCount}語
+                            {masteredCount > 0 && ` • ✓ ${masteredCount}`}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             );
           })}
 
-          {/* 全ての動画カード */}
           {allCasts.length > 1 && (
             <div className="video-grid" style={{ marginTop: '2rem' }}>
-              <div
-                className="video-card video-card-all"
-                onClick={handleSelectAllCasts}
-              >
+              <div className="video-card video-card-all" onClick={handleSelectAllCasts}>
                 <div className="all-videos-icon">📚</div>
                 <div className="video-info">
                   <h3 className="video-title">全ての動画</h3>
@@ -1089,69 +1163,8 @@ function App() {
           </div>
         )}
 
-        {/* ヘルプモーダル */}
-        {showHelp && (
-          <div className="help-modal-overlay" onClick={() => setShowHelp(false)}>
-            <div className="help-modal-content" onClick={(e) => e.stopPropagation()}>
-              <button className="help-modal-close" onClick={() => setShowHelp(false)}>
-                ×
-              </button>
-              <h2>📖 使い方</h2>
-
-              <section className="help-section">
-                <h3>🎤 キャスト選択</h3>
-                <ol>
-                  <li><strong>キャストを選択</strong>: 好きなVtuberキャストをタップして動画一覧へ</li>
-                  <li><strong>動画を選択</strong>: 学習したい動画をタップ</li>
-                  <li><strong>学習開始</strong>: カードをめくって英単語を学習</li>
-                </ol>
-              </section>
-
-              <section className="help-section">
-                <h3>🎯 基本的な使い方</h3>
-                <ol>
-                  <li><strong>カードをタップ</strong>: 表面（英単語）をタップして裏面（和訳と例文）を確認</li>
-                  <li><strong>3段階で評価</strong>:
-                    <ul>
-                      <li>🔴 <strong>覚えてない</strong>: もう一度このカードが出てきます</li>
-                      <li>🟡 <strong>だいたいOK</strong>: もう一度このカードが出てきます</li>
-                      <li>🟢 <strong>余裕</strong>: このカードは今回の学習ではもう出ません</li>
-                    </ul>
-                  </li>
-                  <li><strong>ゴール</strong>: 全ての単語を「余裕」にすることが目標です！</li>
-                </ol>
-              </section>
-
-              <section className="help-section">
-                <h3>💡 セッション管理</h3>
-                <p><strong>記録は学習中のみ保持されます</strong>：</p>
-                <ul>
-                  <li>✅ 学習中は「余裕」にした単語が記憶されます</li>
-                  <li>🔄 ページを閉じる/リロードすると記録がリセットされます</li>
-                  <li>🎯 <strong>1つの動画を「やり切る」学習スタイル</strong>です</li>
-                </ul>
-              </section>
-
-              <button className="help-modal-button" onClick={() => setShowHelp(false)}>
-                閉じる
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* インストールバナー */}
-        {showInstallBanner && (
-          <div className="install-banner">
-            <div className="install-banner-content">
-              <span className="install-banner-text">
-                📲 ホーム画面に追加してアプリのように使えます！
-              </span>
-              <button onClick={handleDismissInstallBanner} className="install-banner-close">
-                ✕
-              </button>
-            </div>
-          </div>
-        )}
+        {helpModal}
+        {installBanner}
       </div>
     );
   }
@@ -1161,66 +1174,52 @@ function App() {
     const totalWords = allVideos.reduce((sum, v) => sum + v.wordCount, 0);
     return (
       <div className="app">
-        {/* ヘッダー */}
         <header className="header">
           <div className="header-left">
-            {selectedCast && (
-              <button onClick={handleBackToCastList} className="back-button" title="キャスト選択に戻る">
-                ←
-              </button>
-            )}
+            <button onClick={handleBackToCastList} className="back-button" title="キャスト選択に戻る">
+              ←
+            </button>
             <img src="/channel-logo.jpg" alt="Vlingual Channel" className="logo" />
             <h1 className="app-name">{selectedCast ? selectedCast.name : 'Vlingual Cards'}</h1>
           </div>
-          <div className="header-right">
-            {'speechSynthesis' in window && (
-              <button onClick={toggleAudio} className="icon-button" title="音声読み上げ">
-                <AudioIcon enabled={audioEnabled} />
-              </button>
-            )}
-            <button onClick={toggleTheme} className="icon-button" title="テーマ切り替え">
-              <ThemeToggleIcon theme={theme} />
-            </button>
-            <button onClick={() => setShowHelp(true)} className="icon-button" title="使い方">
-              ?
-            </button>
-          </div>
+          <div className="header-right">{headerButtons}</div>
         </header>
 
-        {/* ギャラリーコンテンツ */}
         <main className="gallery-container">
           <div className="video-grid">
-            {allVideos.map(video => (
-              <div
-                key={video.id}
-                className="video-card"
-                onClick={() => handleSelectVideo(video)}
-              >
-                <img
-                  src={video.thumbnailUrl}
-                  alt={video.title}
-                  className="video-thumbnail"
-                  loading="lazy"
-                />
-                <div className="video-info">
-                  <h3 className="video-title">{video.title}</h3>
-                  <p className="video-word-count">📖 {video.wordCount}語</p>
-                  <button
-                    className="btn-vocab-list"
-                    onClick={(e) => handleOpenVocabListFromGallery(video, e)}
-                  >
-                    📋 一覧を見る
-                  </button>
+            {allVideos.map(video => {
+              const masteredCount = countMastered(video.cards, progress);
+              return (
+                <div
+                  key={video.id}
+                  className="video-card"
+                  onClick={() => handleSelectVideo(video)}
+                >
+                  <img
+                    src={video.thumbnailUrl}
+                    alt={video.title}
+                    className="video-thumbnail"
+                    loading="lazy"
+                  />
+                  <div className="video-info">
+                    <h3 className="video-title">{video.title}</h3>
+                    <p className="video-word-count">
+                      📖 {video.wordCount}語
+                      {masteredCount > 0 && ` • ✓ ${masteredCount}定着`}
+                    </p>
+                    <button
+                      className="btn-vocab-list"
+                      onClick={(e) => handleOpenVocabListFromGallery(video, e)}
+                    >
+                      📋 一覧を見る
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
-            {/* 全ての動画カード */}
             {allVideos.length > 1 && (
-              <div
-                className="video-card video-card-all"
-                onClick={handleSelectAllVideos}
-              >
+              <div className="video-card video-card-all" onClick={handleSelectAllVideos}>
                 <div className="all-videos-icon">📚</div>
                 <div className="video-info">
                   <h3 className="video-title">全ての動画</h3>
@@ -1230,15 +1229,10 @@ function App() {
                     className="btn-vocab-list"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setVocabListSource({
-                        id: 'all',
-                        title: '全ての動画',
-                        url: '',
-                        thumbnailUrl: '',
-                        cards: allVideos.flatMap(v => v.cards),
-                        wordCount: totalWords
-                      });
-                      setShowVocabList(true);
+                      openVocabList(
+                        selectedCast ? `${selectedCast.name}の全単語` : '全ての動画',
+                        allVideos.flatMap(v => v.cards)
+                      );
                     }}
                   >
                     📋 一覧を見る
@@ -1249,123 +1243,56 @@ function App() {
           </div>
         </main>
 
-        {/* 語彙一覧モーダル */}
-        <VocabListModal />
-
-        {/* ヘルプモーダル */}
-        {showHelp && (
-          <div className="help-modal-overlay" onClick={() => setShowHelp(false)}>
-            <div className="help-modal-content" onClick={(e) => e.stopPropagation()}>
-              <button className="help-modal-close" onClick={() => setShowHelp(false)}>
-                ×
-              </button>
-              <h2>📖 使い方</h2>
-
-              <section className="help-section">
-                <h3>🎯 基本的な使い方</h3>
-                <ol>
-                  <li><strong>動画を選択</strong>: ギャラリーから学習したい動画をタップ</li>
-                  <li><strong>カードをタップ</strong>: 表面（英単語）をタップして裏面（和訳と例文）を確認</li>
-                  <li><strong>3段階で評価</strong>:
-                    <ul>
-                      <li>🔴 <strong>覚えてない</strong>: もう一度このカードが出てきます</li>
-                      <li>🟡 <strong>だいたいOK</strong>: もう一度このカードが出てきます</li>
-                      <li>🟢 <strong>余裕</strong>: このカードは **今回の学習では** もう出ません</li>
-                    </ul>
-                  </li>
-                  <li><strong>ゴール</strong>: 全ての単語を「余裕」にすることが目標です！</li>
-                </ol>
-              </section>
-
-              <section className="help-section">
-                <h3>📊 進捗表示</h3>
-                <p>画面上部に「残り○/○枚」と表示されます。「余裕」にした単語の数が減っていきます。全て「余裕」にすると完了です！</p>
-              </section>
-
-              <section className="help-section">
-                <h3>🎵 音声読み上げ</h3>
-                <p>ヘッダーの🔊/🔇ボタンで音声読み上げをON/OFFできます。ONにすると、カードをめくった時に英単語が読み上げられます。</p>
-              </section>
-
-              <section className="help-section">
-                <h3>💡 セッション管理</h3>
-                <p><strong>記録は学習中のみ保持されます</strong>：</p>
-                <ul>
-                  <li>✅ 学習中は「余裕」にした単語が記憶されます</li>
-                  <li>🔄 ページを閉じる/リロードすると記録がリセットされます</li>
-                  <li>🎯 <strong>1つの動画を「やり切る」学習スタイル</strong>です</li>
-                  <li>📱 集中して全単語を「余裕」にすることを目指しましょう！</li>
-                </ul>
-              </section>
-
-              <section className="help-section">
-                <h3>🔄 進捗リセット</h3>
-                <p>画面下部の「進捗リセット」ボタンで、今回の学習をリセットして最初からやり直せます。「余裕」にした単語が全て再表示されます。</p>
-              </section>
-
-              <section className="help-section">
-                <h3>📲 ホーム画面に追加</h3>
-                <p>アプリのように使えます：</p>
-                <ul>
-                  <li><strong>iPhone/iPad</strong>: Safari で共有ボタン → 「ホーム画面に追加」</li>
-                  <li><strong>Android</strong>: Chrome で「ホーム画面に追加」をタップ</li>
-                </ul>
-              </section>
-
-              <button className="help-modal-button" onClick={() => setShowHelp(false)}>
-                閉じる
-              </button>
-            </div>
-          </div>
-        )}
+        {vocabListModal}
+        {helpModal}
       </div>
     );
   }
 
   // 学習画面
+  const studyTitle =
+    scopeId === 'review'
+      ? '今日の復習'
+      : selectedVideo
+        ? selectedVideo.title
+        : selectedCast
+          ? `${selectedCast.name}｜全動画`
+          : '全ての動画';
+
+  // 完了画面用: 同スコープに次のセットがあるか / 明日の復習枚数（完了時のみ計算）
+  const isComplete = currentId === null;
+  const nextSetSize = isComplete && scopeId
+    ? availableSetSize(
+        scopeId === 'review' ? allCards : scopeCards,
+        progress,
+        today,
+        { reviewOnly: scopeId === 'review', max: scopeId === 'review' ? REVIEW_LIMIT : SET_SIZE }
+      )
+    : 0;
+  const dueTomorrowCount = isComplete ? countDue(allCards, progress, today + 1) : 0;
+
   return (
     <div className="app">
-      {/* ヘッダー */}
       <header className="header">
         <div className="header-left">
-          {selectedCast && (
-            <button onClick={handleBackToVideoList} className="back-button" title="動画選択に戻る">
-              ←
-            </button>
-          )}
+          <button onClick={handleBackFromStudy} className="back-button" title="一覧に戻る">
+            ←
+          </button>
           <img src="/channel-logo.jpg" alt="Vlingual Channel" className="logo" />
-          <h1 className="app-name">
-            {selectedVideo ? selectedVideo.title : 'Vlingual Cards'}
-          </h1>
+          <h1 className="app-name">{studyTitle}</h1>
         </div>
         <div className="header-right">
-          <span className="today-count">残り {cards.length - mastered.size}/{cards.length}枚</span>
+          {!isComplete && <span className="today-count">残り {queue.length}枚</span>}
           <button onClick={handleOpenVocabListFromStudy} className="icon-button" title="語彙一覧">
             📋
           </button>
-          {'speechSynthesis' in window && (
-            <button onClick={toggleAudio} className="icon-button" title="音声読み上げ">
-              <AudioIcon enabled={audioEnabled} />
-            </button>
-          )}
-          <button onClick={toggleTheme} className="icon-button" title="テーマ切り替え">
-            <ThemeToggleIcon theme={theme} />
-          </button>
-          <button onClick={() => setShowHelp(true)} className="icon-button" title="使い方">
-            ?
-          </button>
+          {headerButtons}
         </div>
       </header>
 
-      {/* エラーバナー（サンプルデータ使用時） */}
-      {error && cards === SAMPLE_DATA && (
-        <div className="warning-banner">
-          ⚠️ CSVの読み込みに失敗しました。サンプルデータを表示しています。
-          <button onClick={loadCSV} className="btn-link">再試行</button>
-        </div>
-      )}
+      {sampleBanner}
+      {warningsBanner}
 
-      {/* カードコンテナ */}
       <main className="card-container">
         {currentCard ? (
           <>
@@ -1398,18 +1325,32 @@ function App() {
               {/* カード裏面 */}
               <div className="card-face card-back">
                 <div className="card-translation">{currentCard.和訳}</div>
-                <div className="card-context">
-                  {currentCard.文脈}
+                <div className={`card-context ${currentCard.文脈 ? '' : 'context-pending'}`}>
+                  {currentCard.文脈 || '（例文準備中）'}
                 </div>
-                <a
-                  href={currentCard.動画URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="video-link"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  ▶ 動画で確認
-                </a>
+                <div className="card-back-actions">
+                  {'speechSynthesis' in window && (
+                    <button
+                      className="card-audio-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        speakNow(currentCard.単語);
+                      }}
+                      title="発音を聞く"
+                    >
+                      🔊
+                    </button>
+                  )}
+                  <a
+                    href={currentCard.動画URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="video-link"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    ▶ 動画で確認
+                  </a>
+                </div>
               </div>
             </div>
 
@@ -1441,133 +1382,42 @@ function App() {
         ) : (
           <div className="completion-message">
             <div className="completion-icon">🎉</div>
-            <h2>完了！</h2>
-            <p>この動画の全ての単語を「余裕」にしました！</p>
-            <button onClick={handleReset} className="btn-retry">
-              もう一度学習する
-            </button>
+            <h2>{scopeId === 'review' ? '復習おつかれさま！' : '今日のぶん、やり切った！'}</h2>
+            <p>
+              {dueTomorrowCount > 0
+                ? `明日は ${dueTomorrowCount}枚 が復習に来ます`
+                : '明日の復習はありません。ゆっくり休みましょう'}
+            </p>
+            <div className="completion-actions">
+              {selectedVideo && (
+                <a
+                  href={selectedVideo.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-video-primary"
+                >
+                  ▶ この動画をもう一度見る
+                </a>
+              )}
+              {nextSetSize > 0 && (
+                <button
+                  onClick={() => scopeId && enterStudy(scopeId, scopeCards)}
+                  className="btn-retry"
+                >
+                  次のセットへ（{nextSetSize}枚）
+                </button>
+              )}
+              <button onClick={handleBackFromStudy} className="btn-secondary">
+                一覧へ戻る
+              </button>
+            </div>
           </div>
         )}
       </main>
 
-      {/* フッター */}
-      <footer className="footer">
-        <button onClick={handleReset} className="btn-reset">
-          進捗リセット
-        </button>
-      </footer>
-
-      {/* PWAインストールバナー */}
-      {showInstallBanner && (
-        <div className="install-banner">
-          <button className="install-banner-close" onClick={handleDismissInstallBanner}>
-            ×
-          </button>
-          <div className="install-banner-icon">📲</div>
-          <div className="install-banner-content">
-            <h3>ホーム画面に追加できます</h3>
-            <p className="install-banner-subtitle">アプリのように使えます</p>
-            <div className="install-banner-steps">
-              <div className="install-step">
-                <strong>iPhone/iPad:</strong> Safari の共有ボタン → 「ホーム画面に追加」
-              </div>
-              <div className="install-step">
-                <strong>Android:</strong> Chrome のメニュー → 「ホーム画面に追加」
-              </div>
-            </div>
-            <button className="install-banner-button" onClick={handleDismissInstallBanner}>
-              後で
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* 語彙一覧モーダル */}
-      <VocabListModal />
-
-      {/* ヘルプモーダル */}
-      {showHelp && (
-        <div className="help-modal-overlay" onClick={() => setShowHelp(false)}>
-          <div className="help-modal-content" onClick={(e) => e.stopPropagation()}>
-            <button className="help-modal-close" onClick={() => setShowHelp(false)}>
-              ×
-            </button>
-            <h2>📖 使い方</h2>
-
-            <section className="help-section">
-              <h3>🎯 基本的な使い方</h3>
-              <ol>
-                <li><strong>動画を選択</strong>: ギャラリーから学習したい動画をタップ</li>
-                <li><strong>カードをタップ</strong>: 表面（英単語）をタップして裏面（和訳と例文）を確認</li>
-                <li><strong>3段階で評価</strong>:
-                  <ul>
-                    <li>🔴 <strong>覚えてない</strong>: もっと復習が必要</li>
-                    <li>🟡 <strong>だいたいOK</strong>: ある程度わかった</li>
-                    <li>🟢 <strong>余裕</strong>: 完璧に覚えている</li>
-                  </ul>
-                </li>
-              </ol>
-            </section>
-
-            <section className="help-section">
-              <h3>🎵 音声読み上げ</h3>
-              <p>ヘッダーの🔊/🔇ボタンで音声読み上げをON/OFFできます。ONにすると、カードをめくった時に英単語が読み上げられます。</p>
-            </section>
-
-            <section className="help-section">
-              <h3>🔍 フィルター機能</h3>
-              <p>ヘッダーのフィルターボタンで表示を切り替えられます：</p>
-              <ul>
-                <li><strong>📚 全て</strong>: 全ての単語を学習</li>
-                <li><strong>🔴 覚えてない</strong>: 「覚えてない」と評価した単語のみ集中復習</li>
-              </ul>
-            </section>
-
-            <section className="help-section">
-              <h3>📊 スマートスケジューリング</h3>
-              <p>学習効率を最大化するため、以下のルールで次のカードが選ばれます：</p>
-              <ul>
-                <li><strong>未学習カード優先</strong>: まだ見ていないカードがあればランダムに表示</li>
-                <li><strong>重み付き復習</strong>: 全て学習済みなら、苦手なカード（「覚えてない」が多い）ほど出やすくなります</li>
-              </ul>
-            </section>
-
-            <section className="help-section">
-              <h3>💾 学習記録について</h3>
-              <p><strong>記録はブラウザに保存されます</strong>：</p>
-              <ul>
-                <li>✅ ブラウザを閉じても記録は保持されます</li>
-                <li>✅ 数日後・数週間後も記録は残ります</li>
-                <li>⚠️ ブラウザのキャッシュクリアで消えます</li>
-                <li>⚠️ 異なるブラウザ・デバイスでは記録は共有されません</li>
-                <li>📱 同じブラウザを使い続ける限り、記録は永続的に保持されます</li>
-              </ul>
-            </section>
-
-            <section className="help-section">
-              <h3>🔄 進捗リセット</h3>
-              <p>画面下部の「進捗リセット」ボタンで学習記録をリセットできます：</p>
-              <ul>
-                <li><strong>動画選択時</strong>: その動画の進捗のみリセット</li>
-                <li><strong>「全ての動画」選択時</strong>: 全動画の進捗をリセット</li>
-              </ul>
-            </section>
-
-            <section className="help-section">
-              <h3>📲 ホーム画面に追加</h3>
-              <p>アプリのように使えます：</p>
-              <ul>
-                <li><strong>iPhone/iPad</strong>: Safari で共有ボタン → 「ホーム画面に追加」</li>
-                <li><strong>Android</strong>: Chrome で「ホーム画面に追加」をタップ</li>
-              </ul>
-            </section>
-
-            <button className="help-modal-button" onClick={() => setShowHelp(false)}>
-              閉じる
-            </button>
-          </div>
-        </div>
-      )}
+      {vocabListModal}
+      {helpModal}
+      {installBanner}
     </div>
   );
 }

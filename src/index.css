@@ -28,6 +28,13 @@
   --text-primary: #ffffff;
   --text-secondary: #9ca3af;
   --text-muted: #6b7280;
+  --text: var(--text-primary); /* App.cssで参照される別名（未定義バグ修正） */
+
+  /* 面（surface）: 背景より一段浮いた/沈んだ面。ライトで背景と同色にならないよう分離 */
+  --surface-sunken: #12121f;
+  --primary-hover: #9333ea;
+  --hover-overlay: rgba(255, 255, 255, 0.1);
+  --accent-wash: linear-gradient(135deg, rgba(168, 85, 247, 0.15), rgba(168, 85, 247, 0.05)); /* アクセント色の淡い面 */
 
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
@@ -75,6 +82,13 @@
   --text-primary: #37352F; /* Notion標準テキスト */
   --text-secondary: #787774; /* Notionミディアムグレー */
   --text-muted: #9B9A97; /* Notionライトグレー */
+  --text: var(--text-primary);
+
+  /* 面: 白背景の上で沈んだ面（例文ボックスが白地に白で消えるバグの修正） */
+  --surface-sunken: #F7F6F3; /* Notion風の薄グレー面 */
+  --primary-hover: #475569;
+  --hover-overlay: rgba(15, 15, 15, 0.06);
+  --accent-wash: linear-gradient(135deg, rgba(100, 116, 139, 0.12), rgba(100, 116, 139, 0.04));
 
   color-scheme: light;
   color: var(--text-primary);

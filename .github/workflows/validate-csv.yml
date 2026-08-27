@@ -1,0 +1,28 @@
+# vocab.csv の品質チェック（非ブロッキング）
+# GitHub Web UI からの直接編集でも、コミット後に警告アノテーションが付く。
+# デプロイ（Vercel）はこのワークフローとは独立しており、失敗してもデプロイは止まらない。
+name: Validate vocab.csv
+
+on:
+  push:
+    paths:
+      - 'public/vocab.csv'
+      - 'src/lib/csv.ts'
+      - 'scripts/validate-csv.ts'
+  pull_request:
+    paths:
+      - 'public/vocab.csv'
+      - 'src/lib/csv.ts'
+      - 'scripts/validate-csv.ts'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run validate-csv -- --ci

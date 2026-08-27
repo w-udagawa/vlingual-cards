@@ -1,5 +1,5 @@
-// 語彙カードの型定義
-export interface VocabCard {
+// 語彙カードの入力型（CSV1行分。IDはCSVに持たせず導出する）
+export interface VocabCardInput {
   単語: string;
   和訳: string;
   難易度: '初級' | '中級' | '上級';
@@ -9,6 +9,12 @@ export interface VocabCard {
   動画タイトル?: string;  // オプショナル（CSVにない場合も対応）
   事務所?: string;         // オプショナル（事務所名）
   キャスト名?: string;     // オプショナル（キャスト名）
+}
+
+// 語彙カード（アプリ内部表現。安定ID付き）
+export interface VocabCard extends VocabCardInput {
+  id: string;      // `${videoId}::${normalize(単語)}`（src/lib/ids.ts で導出）
+  videoId: string; // YouTube動画ID
 }
 
 // 動画グループ（YouTube動画ごと）
@@ -32,7 +38,8 @@ export interface CastGroup {
 }
 
 // サンプルデータ（CSV読み込みエラー時のフォールバック用）
-export const SAMPLE_DATA: VocabCard[] = [
+// 使用時は attachCardIds()（src/lib/csv.ts）でIDを付与すること
+export const SAMPLE_DATA: VocabCardInput[] = [
   {
     単語: "accomplish",
     和訳: "達成する",
@@ -153,4 +160,7 @@ export const DEFAULT_CSV_URL = "/vocab.csv";
 export const AUDIO_ENABLED_KEY = "audio_enabled";
 export const THEME_PREFERENCE_KEY = "theme_preference";
 export const AGENCY_ORDER_KEY = "agency_order";
+export const INSTALL_BANNER_DISMISSED_KEY = "install_banner_dismissed";
+
+// 旧進捗キー（v3.0.0で vlc_learning_v1 に移行済み。読み取り専用・削除しない）
 export const VOCABULARY_CHECKED_KEY = "vocabulary_checked";

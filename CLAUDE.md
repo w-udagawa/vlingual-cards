@@ -6,6 +6,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Vlingual Cards** は、YouTubeチャンネル「Vlingual Channel」の英語学習語彙を復習するためのPWAフラッシュカードアプリです。React 18 + TypeScript + Viteで構築されています。
 
+- 本番URL: **https://vlingual-cards.vercel.app**
+- 収録カード数: 672（`public/vocab.csv`）
+- アカウント不要・無料・広告なし。進捗はブラウザ（localStorage）に保存
+- Vercel Analytics導入済み（Cookieレス）
+
 ## Essential Commands
 
 ```bash
@@ -21,197 +26,140 @@ npm run preview
 # ESLint実行
 npm run lint
 
-# デプロイ: GitHubにpushすると自動的にVercelがビルド・デプロイ
+# ユニットテスト（vitest、62テスト）
+npm test
+
+# CSV品質チェック（列数・難易度・タイトル揺れ・重複などを検査）
+npm run validate-csv
+
+# デプロイ: GitHubにpushすると自動的にVercelがビルド・デプロイ（1〜2分）
 git push origin main
 ```
 
+GitHub Actions（`.github/workflows/validate-csv.yml`）が `public/vocab.csv` 等のpush時に `validate-csv --ci` を実行し、**非ブロッキング**の警告アノテーションを付けます（失敗してもVercelのデプロイは止まりません）。
+
 ## Architecture
 
-### Single Component Architecture
-このアプリは **App.tsx** に全てのロジックを集約したシンプルな構造です。コンポーネント分割は意図的に行っていません。
+### App.tsx + 純関数ライブラリ
 
-**src/App.tsx** (~806行):
-- CSV読み込み・解析
-- カード表示・フリップ制御
-- スライドアニメーション（カード遷移）
-- 評価システム（3段階）
-- シンプルなランダム選択
-- セッション管理（メモリ内のみ）
-- 音声読み上げ（Web Speech API）
-- 完了メッセージ表示
+UIは **src/App.tsx** に集約し、ロジックは **src/lib/** の純関数に分離しています。
+
+**src/App.tsx**（UI集約）:
+- 画面遷移（キャスト一覧 → 動画一覧 → 学習画面）
+- カード表示・フリップ・スライドアニメーション
+- 評価ボタン（3段階）と出題キューの駆動
+- 音声読み上げ（Web Speech API）+ カード裏面の🔊リプレイボタン
+- 語彙一覧モーダル・ヘルプモーダル・PWAインストールバナー
+- テーマ切替（ダーク/ライト）、事務所の並び替え
+- ディープリンク処理（`?video=` / `?cast=`）
+
+**src/lib/**（純関数。副作用はstore.tsのlocalStorage入出力のみ）:
+| ファイル | 責務 | 主な関数 |
+|---|---|---|
+| `csv.ts` | RFC4180準拠CSVパーサ、YouTube ID抽出、カードID付与 | `parseCsvRows` / `parseVocabCsv` / `extractYouTubeId` / `attachCardIds` |
+| `ids.ts` | カードID導出（唯一の定義箇所） | `cardId` / `normalizeWord` |
+| `schedule.ts` | Leitner 5箱の状態遷移・日付計算 | `applyRating` / `todayLocal` / `isDue` / `isMastered` |
+| `session.ts` | セット構成・出題キュー・再挿入 | `buildStudySet` / `buildReviewSet` / `reinsert` / `countDue` |
+| `store.ts` | localStorage永続化・マージ・移行・エクスポート/インポート | `loadStore` / `saveStore` / `migrateLegacyChecked` / `exportProgress` / `importProgress` |
+
+**テスト**: `src/lib/__tests__/`（csv / schedule / session / store）。`npm test` で実行。
 
 **src/types.ts**:
-- `VocabCard`: CSV行のデータ構造
-- `VideoGroup`: 動画ごとのグループ化
-- `SAMPLE_DATA`: フォールバック用10単語
-- `DEFAULT_CSV_URL`: Vercel `/vocab.csv` への定数
-- `AUDIO_ENABLED_KEY`: 音声設定用のlocalStorageキー
+- `VocabCardInput`: CSV1行分（IDなし）
+- `VocabCard`: アプリ内部表現（`id` + `videoId` 付き）
+- `VideoGroup` / `CastGroup`: 動画・キャストごとのグループ化
+- `SAMPLE_DATA`: フォールバック用10単語（使用時は `attachCardIds()` でID付与）
+- `DEFAULT_CSV_URL`: `/vocab.csv`
+- localStorageキー定数
 
-### Data Flow
+### Navigation Flow（3階層 + ディープリンク）
 
 ```
-起動時
-  ↓
-DEFAULT_CSV_URL からCSV取得
-  ↓ (失敗時)
-SAMPLE_DATA にフォールバック
-  ↓
-parseCSV() で VocabCard[] に変換
-  ↓
-動画ごとにグループ化 → VideoGroup[]
-  ↓
-動画選択 → セッション開始（mastered: Set<string> = 空）
-  ↓
-selectNextCard() でランダム選択（「余裕」以外から）
-  ↓
-カード表示 → 評価
-  - 「余裕」タップ → mastered に追加 → カード非表示
-  - その他 → カード継続表示
-  ↓
-次のカード選択（ループ）
-  ↓
-全て「余裕」→ 🎉完了メッセージ
-  ↓
-ページを閉じる/リロード → セッションリセット（最初から）
+キャスト一覧（ホーム） ──▶ 動画一覧 ──▶ 学習画面
+     │
+     └─ 🔁 今日の復習（N枚） ──▶ 学習画面（復習スコープ）
 ```
 
-### Learning Model (v2.0.0)
+- ホームに「🔁 今日の復習（N枚）」導線: **全動画横断・due到来カードのみ・上限30枚・新規なし**。N=0なら非表示
+- ディープリンク: `https://vlingual-cards.vercel.app/?video=<YouTube動画ID>` で動画の学習画面に直行（概要欄・固定コメントに貼れる）。`?cast=<キャスト名>` も動作。`App.tsx` の `handleSelectCast` / `handleSelectVideo` が `history.pushState` でURLを同期し、popstateで戻る操作にも追従
+- 戻るボタンは常に表示
 
-**シンプルなセッション制学習**:
-- **ゴール**: 1つの動画の全単語を「余裕」にすること
-- **評価の効果**:
-  - 🔴 **覚えてない** / 🟡 **だいたいOK**: カードが何度も出現
-  - 🟢 **余裕**: そのセッション中は非表示（`mastered` Setに追加）
-- **ランダム選択**: 「余裕」以外のカードからランダムに選択（スコアリングなし）
-- **セッション管理**: ページを閉じると記録リセット、次回は最初から
+## Learning Model (v3.0.0) — 正典は docs/learning-model.md
 
-App.tsx の `selectNextCard()` 関数:
-```typescript
-const selectNextCard = (allCards: VocabCard[]): VocabCard | null => {
-  // 「余裕」にしていないカードをフィルター
-  const availableCards = allCards.filter(card => !mastered.has(card.単語));
+**[docs/learning-model.md](docs/learning-model.md) が学習モデル・カードID・ストレージの唯一の正典です。** コード・ヘルプ・このファイルが正典と食い違う場合、正典に合わせて直すこと。詳細（状態機械・遷移表・ストレージスキーマ）はここに二重記述しません。以下は要約のみ:
 
-  if (availableCards.length === 0) {
-    return null; // 全て「余裕」になった
-  }
+- **ハイブリッド学習モデル**: 進捗はlocalStorage（キー `vlc_learning_v1`）に永続保存。裏側はLeitner 5箱の間隔反復だが、**UIにSRS用語（箱・間隔・忘却曲線）は出さない**
+- ユーザー向け説明はこれだけ: 「🔴すぐまた出る / 🟡しばらくしてまた出る / 🟢余裕=当分出ない」+「記録が進むのは1日1回」+「忘れかけた頃に今日の復習に出てくる」（原文は正典末尾）
+- **1セット = 最大20枚**。大きい動画は自動的に複数セットに分かれる（セット番号はUIに見せない）
+- 評価後のセット内再出題: 覚えてない→**3枚後** / だいたいOK→**8枚後** / 余裕→出ない
+- **セッション復帰**: 評価のたびにキューをストアへ書き戻すため、リロード/アプリ切替でも同日・同スコープなら続きから復帰する
+- **完了画面**: 🎉 +「明日はN枚が復習に来ます」+ 主ボタン「▶ この動画をもう一度見る」+「次のセットへ」。`confirm()` ダイアログと「進捗リセット」ボタンは廃止済み
+- **語彙一覧の「覚えた」チェック = 出題停止スイッチ**（学習進捗と完全統合）。「余裕」を積み上げたカードは自動でチェックが付く。外すと再出題対象に戻る
+- **学習データの引っ越し**: ヘルプモーダルから進捗のエクスポート/インポート（JSONコピペ）が可能
 
-  // ランダムに選択
-  return availableCards[Math.floor(Math.random() * availableCards.length)];
-};
+## Storage (localStorage)
+
+| キー | 内容 |
+|---|---|
+| `vlc_learning_v1` | 学習進捗ストア（カード状態 + アクティブセッション）。スキーマは正典参照 |
+| `audio_enabled` | 音声読み上げON/OFF |
+| `theme_preference` | ダーク/ライトテーマ |
+| `agency_order` | 事務所の表示順 |
+| `install_banner_dismissed` | PWAインストールバナーを閉じたか |
+| `vlc_learning_v1_backup` | 破損・version不一致で読めなかった進捗データの退避先（自動生成・通常は存在しない） |
+| `vocabulary_checked` | **旧進捗キー（読み取りのみ）**。初回に `vlc_learning_v1` へ移行済み。ロールバック安全弁として削除しない |
+
+キー定数は `src/types.ts`（`LEARNING_STORE_KEY` のみ `src/lib/store.ts`）に定義。
+
+## CSV Data Source
+
+### 仕様（9列推奨）
+
+```csv
+単語,和訳,難易度,品詞,文脈,動画URL,動画タイトル,事務所,キャスト名
+accomplish,達成する,中級,動詞,"例文 (日本語訳)",https://youtu.be/abc123,動画タイトル,ホロライブ,がうる・ぐら
 ```
 
-### Session Storage
+**パーサ（`src/lib/csv.ts` の `parseVocabCsv`）の特性**:
+- RFC4180準拠（ダブルクォート・エスケープ `""`・クォート内カンマ/改行に対応）
+- **ヘッダー名ベース**で列を解決。6列/7列/9列の後方互換あり、未知の追加列にも耐える
+- 不正行は無言スキップせず、**件数をUIバナーに表示**する
+- 同一動画内の重複行（同じ単語）は自動で初出行に統合
+- 品詞「スラング」を正式サポート
 
-**セッション管理（メモリ内）**:
-- `mastered: Set<string>` - 「余裕」にした単語のSet（State変数）
-- ページを閉じる/リロード → 自動リセット
-- 動画を切り替え → 自動リセット
+**必須ルール**:
+- 難易度: 必ず `初級` / `中級` / `上級` のいずれか
+- 文脈にカンマや改行がある場合はダブルクォートで囲む
+- **同一動画のタイトルは全行同じにする**（揺れたら初出行が採用され、`npm run validate-csv` が警告する）
 
-**永続保存（localStorage）**:
-- `audio_enabled`: 音声読み上げON/OFF（boolean文字列）のみ保存
+### 更新ワークフロー
 
-**設計思想**:
-- **集中学習を促進**: 1つの動画を「やり切る」モチベーション
-- **シンプルさ**: 複雑な進捗管理なし、わかりやすい学習フロー
-- **新鮮さ**: 毎回最初から、反復学習に最適
+1. GitHub Web UI で `public/vocab.csv` を編集
+2. コミット → push（GitHub ActionsがCSVを自動検査、警告は非ブロッキング）
+3. Vercel が自動的にビルド・デプロイ（**1〜2分で反映**）
+
+**設計原則**: CSVは読み取り専用の教材。ID列・進捗列はCSVに追加しない（カードIDは `src/lib/ids.ts` で導出）。
+
+### YouTube ID / サムネイル
+
+- 対応URL形式（`extractYouTubeId`）: `youtu.be/{ID}` / `youtube.com/watch?v={ID}` / `youtube.com/embed/{ID}`
+- サムネイル: `https://img.youtube.com/vi/{VIDEO_ID}/mqdefault.jpg`（APIキー不要、CDN直参照）
+- グループ化: `App.tsx` の `groupCardsByVideo` / `groupCardsByCast`
 
 ## Configuration
 
 ### Vite Config (vite.config.ts)
 
 ```typescript
-base: '/' // Vercel用のベースパス（ルート配置）
+base: '/' // Vercelはルートパスにデプロイされるため
 ```
-
-**重要**: Vercelはルートパスにデプロイされるため、`base: '/'` を使用します。GitHub Pagesの場合は `base: '/vlingual-cards/'` が必要でした。
-
-### CSV Data Source (types.ts)
-
-**Vercel連携**: アプリは Vercel の `/vocab.csv` からCSVを読み込みます。
-
-```typescript
-DEFAULT_CSV_URL = "/vocab.csv"
-```
-
-**CSV更新ワークフロー**:
-1. GitHub Web UI で `public/vocab.csv` を編集
-2. コミット → GitHubにpush
-3. Vercel が自動的にビルド・デプロイ（**1〜2分で反映**）
-
-CSV形式（7列または6列）:
-```
-単語,和訳,難易度,品詞,文脈,動画URL,動画タイトル
-accomplish,達成する,中級,動詞,"例文 (日本語訳)",https://youtu.be/abc123,英語学習動画
-```
-
-**必須ルール**:
-- 難易度: 必ず `初級` / `中級` / `上級` のいずれか
-- 文脈にカンマや改行がある場合はダブルクォートで囲む
-- エスケープされたクォート（`""`）に対応
-- 動画タイトル列は省略可能（6列形式も対応）
 
 ### Node.js Version Compatibility
 
 **重要**: Vite 5.4.21を使用しているため、Node.js 18.x で動作します。
-- Vite 7.x は Node.js 20.19+ が必要なため、意図的にダウングレード済み
-- React 18.3.1 を使用（React 19ではなく）
-
-## Styling
-
-カスタムCSS（Tailwind CSS不使用）:
-- `src/index.css`: グローバルスタイル、CSS Variables定義
-- `src/App.css`: コンポーネントスタイル、3Dフリップアニメーション、スライドアニメーション
-
-### Card Transition Animation (v2.0.1)
-
-**スライドアニメーション実装** (`App.css:202-247`):
-- カード遷移時のスムーズなアニメーション
-- `@keyframes slideOutToRight`: 右へスライドアウト（400ms）
-- `@keyframes slideInFromLeft`: 左からスライドイン（400ms）
-- CSS `animation`のみ使用（`transition`との競合を回避）
-
-**重要な実装ポイント**:
-```css
-/* 遷移アニメーション用の基本スタイル */
-.card {
-  /* transitionは使用しない（animationと競合するため） */
-}
-
-.card.slide-out {
-  animation: slideOutToRight 0.4s ease-in-out forwards;
-  /* forwards: アニメーション最終状態を保持 */
-}
-
-.card.slide-in {
-  animation: slideInFromLeft 0.4s ease-in-out;
-}
-```
-
-**タイミング管理** (`App.tsx:262-291`):
-```typescript
-setIsTransitioning(true);  // アニメーション開始
-setIsFlipped(false);       // フリップ状態リセット
-
-setTimeout(() => {
-  setCurrentCard(nextCard);     // カード切り替え
-  setIsTransitioning(false);    // アニメーション終了
-}, 450);  // 400ms animation + 50ms buffer
-```
-
-**モバイル対応**:
-- CSS `transition`と`animation`の競合を解消
-- モバイルでのちらつき（二重アニメーション）を完全解消
-- iOS Safari / Android Chrome で動作確認済み
-
-**カラーパレット** (CSS Variables):
-```css
---primary: #a855f7;          /* パープル */
---background: #0f0f1a;       /* ダークブルー */
---card-bg: #1a1a2e;          /* ダークグレー */
---level-beginner: #10b981;   /* 初級 = グリーン */
---level-intermediate: #f59e0b; /* 中級 = オレンジ */
---level-advanced: #ef4444;   /* 上級 = レッド */
-```
+- Vite 7.x は Node.js 20.19+ が必要なため、意図的にVite 5に留めている
+- React 18.3.1 を使用（React 19ではない）
+- ビルド時の「Vite requires Node.js version 20.19+」は警告のみで、ビルドが成功していれば問題なし
 
 ## TypeScript Import Rules
 
@@ -226,44 +174,28 @@ import { SAMPLE_DATA, DEFAULT_CSV_URL, AUDIO_ENABLED_KEY } from './types';
 import { VocabCard, SAMPLE_DATA } from './types';
 ```
 
-## PWA Configuration
+## Styling
+
+カスタムCSS（Tailwind CSS不使用）:
+- `src/index.css`: グローバルスタイル、CSS Variables定義（ダーク/ライト両テーマ）
+- `src/App.css`: コンポーネントスタイル、3Dフリップアニメーション、スライドアニメーション
+
+カード遷移は CSS `animation` のみ使用（`transition` と併用するとモバイルでちらつくため）。タイミング制御は `App.tsx` の `handleRate` 内の `setTimeout`。
+
+## PWA
 
 `public/manifest.json`:
-- `start_url: "/"` - Vercel用のルートパス
-- `display: "standalone"` - アプリモード
-- アイコン実装済み（チャンネルロゴJPG、192x192 / 512x512）
+- `start_url: "/"` / `display: "standalone"`
+- アイコンはチャンネルロゴJPG（192x192 / 512x512）
 
-**PWA Features**:
-- ヘルプモーダル（「?」ボタンで使い方を表示）
-- インストール促進バナー（初回アクセス時、3秒後に表示）
-- ホーム画面追加でネイティブアプリのような体験
+**機能**:
+- ヘルプモーダル（使い方 + 学習データの引っ越し）
+- インストール促進バナー（**インストール済み=standalone表示なら出ない**。閉じたら `install_banner_dismissed` に記録）
+- **Service Workerは未実装 → オフラインは非対応（Phase 2予定）**
 
 ## Deployment
 
-### Live Demo
-
-🌐 **https://vlingual-cards.vercel.app**
-
-### Vercel Setup
-
-#### 初回デプロイ
-
-1. **Vercelアカウント作成**: https://vercel.com/signup
-2. **GitHubリポジトリと連携**:
-   - Vercel ダッシュボードで「New Project」をクリック
-   - GitHubリポジトリ `w-udagawa/vlingual-cards` を選択
-   - **Framework Preset**: Vite が自動検出される
-   - **Build Command**: `npm run build` （自動設定）
-   - **Output Directory**: `dist` （自動設定）
-   - 「Deploy」をクリック
-
-3. **デプロイ完了**:
-   - 数分後に `https://vlingual-cards.vercel.app` で公開されます
-   - 以降、`main` ブランチへのpush時に自動デプロイ
-
-#### 2回目以降
-
-GitHubにpushするだけ：
+GitHubにpushするだけ:
 
 ```bash
 git add .
@@ -271,65 +203,14 @@ git commit -m "Update: 機能追加"
 git push origin main
 ```
 
-Vercelが自動的にビルド・デプロイを実行します（所要時間: 1〜2分）。
-
-### Deploy Workflow
-
-```
-git push origin main
-  ↓
-Vercel が自動検知
-  ↓
-npm run build を実行（Vercelサーバー上）
-  ↓
-dist/ を本番環境にデプロイ
-  ↓
-https://vlingual-cards.vercel.app に反映
-```
-
-**自動デプロイの利点**:
-- GitHub Pagesの5分 → Vercelの1〜2分
-- プレビューデプロイ（PRごとに専用URL生成）
-- ビルドログの詳細表示
-- ロールバックが簡単（ダッシュボードから1クリック）
+Vercelが自動検知して `npm run build` を実行し、`dist/` を本番環境にデプロイします（所要時間: 1〜2分）。プレビューデプロイ（PRごとに専用URL）、ロールバック（ダッシュボードから1クリック）に対応。
 
 ## Debugging
 
-### 構造化ログ（vibelogger風）
+DevToolsコンソールの構造化ログ:
 
-ブラウザのDevToolsコンソールで以下のログを確認できます：
-
-```javascript
-[CSV_LOAD] {
-  operation: "loadCSV",
-  url: "/vocab.csv",
-  status: "success",
-  cardCount: 50,
-  timestamp: "2025-10-30T13:04:11.708Z"
-}
-
-[CARD_SELECT] {
-  operation: "selectNextCard",
-  word: "accomplish",
-  remaining: 25,  // 残りカード数
-  total: 50,      // 総カード数
-  timestamp: "2025-10-30T13:04:11.709Z"
-}
-
-[CARD_RATE] {
-  operation: "handleRate",
-  word: "accomplish",
-  rating: "easy",  // "again" | "ok" | "easy"
-  mastered: true,  // 「余裕」の場合のみ true
-  remaining: 24,   // 残りカード数（「余裕」の場合）
-  timestamp: "2025-10-30T13:04:15.123Z"
-}
-```
-
-**ログの見方**:
-- `[CSV_LOAD]`: CSV読み込みの成功/失敗、単語数
-- `[CARD_SELECT]`: 選択されたカードと残りカード数
-- `[CARD_RATE]`: 評価とマスター状態（「余裕」かどうか）
+- `[CSV_LOAD]`（成功）/ `[CARD_RATE]`: **開発ビルドのみ**（`App.tsx` の `devLog` 経由。本番には出ない）
+- `[CSV_LOAD]`（エラー）/ `[CSV_WARN]`（不正行の詳細）/ `[STORE]`（進捗データ退避）: **本番でも出る**（意図的。UIバナーが「詳細はブラウザのコンソール」と案内するため）
 
 ## Troubleshooting
 
@@ -341,10 +222,10 @@ https://vlingual-cards.vercel.app に反映
 
 ### CSV Parse Error
 
-- `types.ts` の `SAMPLE_DATA` がフォールバックとして使用される
-- エラー画面に「サンプルで試す」ボタンが表示される
-- CSV形式が正しいか確認（特に難易度の値）
-- DevToolsコンソールで `[CSV_LOAD]` ログを確認
+- パース不能な不正行は件数がUIバナーに表示される
+- CSV全体の読み込みに失敗した場合は `SAMPLE_DATA` にフォールバック
+- `npm run validate-csv` でローカル検査できる
+- 開発ビルドではDevToolsコンソールの `[CSV_LOAD]` ログを確認
 
 ### Browser Cache Issues
 
@@ -353,204 +234,15 @@ https://vlingual-cards.vercel.app に反映
 - シークレットウィンドウで開く
 - ブラウザキャッシュをクリア
 
-### Build Warning (Node.js Version)
+## Known Remaining Tasks
 
-```
-You are using Node.js 18.19.1. Vite requires Node.js version 20.19+ or 22.12+.
-```
-
-- これは警告のみで、Vite 5.4.21 はNode.js 18で正常動作します
-- ビルドが成功していれば問題なし
-
-## Multi-Video Support (v1.2.0)
-
-### Architecture Overview
-
-**Dual-Screen Design**:
-- **Gallery Screen**: Video selection with YouTube thumbnails
-- **Study Screen**: Flashcard learning interface
-
-**Key Components**:
-```typescript
-// src/types.ts - Line 23-30
-export interface VideoGroup {
-  id: string;              // YouTube video ID (extracted from URL)
-  title: string;           // Video title (auto-generated: "動画1", "動画2", etc.)
-  url: string;             // Original YouTube URL
-  thumbnailUrl: string;    // YouTube thumbnail (mqdefault.jpg)
-  cards: VocabCard[];      // Vocabulary cards for this video
-  wordCount: number;       // Number of vocabulary items
-}
-```
-
-### YouTube ID Extraction
-
-**Supported URL Formats** (App.tsx:11-22):
-- `https://youtu.be/{VIDEO_ID}`
-- `https://youtube.com/watch?v={VIDEO_ID}`
-- `https://youtube.com/embed/{VIDEO_ID}`
-
-**Thumbnail URL**: `https://img.youtube.com/vi/{VIDEO_ID}/mqdefault.jpg`
-- No API key required
-- Direct CDN access
-
-### Data Grouping Logic (App.tsx:115-143)
-
-```typescript
-const groupCardsByVideo = (cards: VocabCard[]): VideoGroup[] => {
-  const grouped = new Map<string, VideoGroup>();
-
-  cards.forEach(card => {
-    const videoId = extractYouTubeId(card.動画URL);
-    if (!videoId) return; // Skip invalid URLs
-
-    if (!grouped.has(videoId)) {
-      grouped.set(videoId, {
-        id: videoId,
-        title: card.動画タイトル || `動画${grouped.size + 1}`,  // CSVからタイトル取得、なければフォールバック
-        url: card.動画URL,
-        thumbnailUrl: getThumbnailUrl(videoId),
-        cards: [],
-        wordCount: 0
-      });
-    }
-
-    const group = grouped.get(videoId)!;
-    group.cards.push(card);
-    group.wordCount++;
-  });
-
-  return Array.from(grouped.values());
-};
-```
-
-### State Management
-
-**New State Variables** (App.tsx:30-41):
-- `screen: 'gallery' | 'study'` - Current screen
-- `allVideos: VideoGroup[]` - All video groups
-- `selectedVideo: VideoGroup | null` - Currently selected video
-
-**Navigation Flow**:
-1. Load CSV → Group by video URL → Set `allVideos`
-2. If `allVideos.length > 1` → Show gallery
-3. If `allVideos.length === 1` → Auto-navigate to study
-4. User selects video → Switch to study screen
-5. Back button (visible if multiple videos) → Return to gallery
-
-### Session Management (v2.0.0)
-
-**セッション制学習**:
-- 動画選択時に新しいセッション開始
-- `mastered: Set<string>` を空でリセット
-- ページを閉じる/リロードで自動リセット
-- 永続保存なし（意図的な設計）
-
-**利点**:
-- シンプルで分かりやすい
-- 毎回新鮮な気持ちで学習開始
-- 「全て余裕にする」という明確なゴール
-
-### Gallery UI (App.css:267-416)
-
-**Responsive Grid**:
-- Desktop: `repeat(auto-fill, minmax(280px, 1fr))`
-- Tablet (≤768px): `minmax(240px, 1fr)`
-- Mobile (≤480px): `1fr` (single column)
-
-**Video Card Styles**:
-- Thumbnail: 320×180px (16:9 aspect ratio)
-- Hover effect: `translateY(-4px)` with purple border
-- "All Videos" card: Purple gradient background with 📚 icon
-
-**Back Button** (App.css:392-404):
-- Positioned in header-left
-- Only visible if `allVideos.length > 1`
-- Purple color with hover effect
-
-### CSV Format Requirements
-
-**7列形式（推奨）**:
-```csv
-単語,和訳,難易度,品詞,文脈,動画URL,動画タイトル
-word1,訳1,初級,名詞,"Example 1",https://youtu.be/VIDEO_ID_1,動画タイトル1
-word2,訳2,中級,動詞,"Example 2",https://youtu.be/VIDEO_ID_1,動画タイトル1
-word3,訳3,上級,形容詞,"Example 3",https://youtu.be/VIDEO_ID_2,動画タイトル2
-```
-
-**6列形式（後方互換）**:
-```csv
-単語,和訳,難易度,品詞,文脈,動画URL
-word1,訳1,初級,名詞,"Example 1",https://youtu.be/VIDEO_ID_1
-word2,訳2,中級,動詞,"Example 2",https://youtu.be/VIDEO_ID_1
-```
-
-**Grouping**: All cards with the same `動画URL` are grouped together. Video titles are read from CSV (7-column format) or auto-generated (6-column format).
-
-## Future Enhancements (Not Implemented)
-
-**Phase 2 (PWA完全対応)**:
-- Service Worker（オフライン対応、キャッシング）
-
-**Phase 3 (オプション機能)**:
-- 進捗の永続保存（オプション設定で有効化）
-- 統計表示（セッション内での学習回数など）
-- カスタムCSVアップロード機能
+- **例文がテンプレート生成のままの動画が7本**あり、実発話への差し替え作業中（オーナー作業）
+- **Service Worker / PWA完全化（オフライン対応）は Phase 2**
+- 苦手検出（`lapses` の活用）も Phase 2 候補（正典参照）
 
 ---
 
-**Version**: 2.0.1
-**Last Updated**: 2025-10-31
+**Version**: 3.0.0
+**Last Updated**: 2026-08-27
 
-**Changes (v2.0.1 - 2025-10-31) - 🐛 スライドアニメーション修正**:
-- **カード遷移アニメーションの実装**:
-  - 評価ボタン押下後、カードが右にスライドアウト（400ms）
-  - 新しいカードが左からスライドイン（400ms）
-  - 次のカードの和訳が見えてしまう問題を完全解消
-- **モバイルでのちらつき問題修正**:
-  - CSS `transition`と`animation`の競合を解消
-  - `transition`を削除し、`animation`のみ使用
-  - `.card.slide-out`を`@keyframes slideOutToRight`に変更
-  - `forwards`でアニメーション最終状態を保持
-- **タイミング最適化**:
-  - `setTimeout`: 600ms → 450ms（400ms animation + 50ms buffer）
-  - モバイルでの二重アニメーション（左→消える→右）を完全解消
-- **UX改善**:
-  - アニメーション中は評価ボタン無効化（`opacity: 0.5`）
-  - カードタップ無効化で誤操作防止
-  - デスクトップ・モバイル両方でスムーズな動作
-- **技術詳細**:
-  - App.tsx: `isTransitioning` state追加、handleRate関数改修
-  - App.css: `@keyframes slideOutToRight`/`slideInFromLeft`追加
-  - iOS Safari / Android Chrome で動作確認済み
-
-**Changes (v2.0.0 - 2025-10-30) - 🎉 大規模リファクタリング**:
-- **シンプルなセッション制学習モデルへ変更**:
-  - 複雑なスコアリングアルゴリズムを廃止
-  - 「余裕」タップ → 即座に非表示（シンプルなランダム選択）
-  - ページを閉じるとリセット（セッション管理）
-- **進捗保存の廃止**:
-  - localStorageへの永続保存を削除（音声設定のみ保持）
-  - `mastered: Set<string>` でセッション内管理
-- **UI改善**:
-  - ヘッダーに「残り○/○枚」の進捗表示を追加
-  - 全て「余裕」にすると🎉完了メッセージ表示
-  - 「覚えてない」フィルター機能を削除（不要に）
-- **ヘルプモーダル更新**:
-  - 新しい学習モデルの説明に変更
-  - セッション管理の説明を追加
-- **コード削減**:
-  - 約200行のコード削減（Progress/ProgressData型削除、複雑なロジック削除）
-- **設計思想**:
-  - 「1つの動画を集中してやり切る」モチベーション向上
-  - シンプルで分かりやすい学習フロー
-  - 毎回新鮮な気持ちで反復学習
-
-**Changes (v1.3.1 - 2025-10-25)**:
-- チャンネルロゴ統合
-- カードフリップの裏面透過問題を修正（backface-visibility）
-
-**Changes (v1.3.0 - 2025-10-22)**:
-- Vercelへの移行
-- ヘルプモーダル追加
-- PWAインストール促進バナー追加
+変更履歴は [CHANGELOG.md](CHANGELOG.md) を参照。

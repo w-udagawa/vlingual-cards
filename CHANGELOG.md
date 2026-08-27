@@ -5,6 +5,43 @@ All notable changes to Vlingual Cards will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2026-08-27
+
+### Added
+- **ハイブリッド学習モデル**: 進捗をブラウザ（localStorage キー `vlc_learning_v1`）に永続保存
+  - 裏側はLeitner 5箱の間隔反復。UIにはSRS用語を出さない（正典: `docs/learning-model.md`）
+  - ユーザー向け説明は「🔴すぐまた出る / 🟡しばらくしてまた出る / 🟢余裕=当分出ない」+「記録が進むのは1日1回」のみ
+  - 前に学んだ単語は、忘れかけた頃に「今日の復習」に出てくる
+- **1セット = 最大20枚**: 大きい動画は自動的に複数セットに分かれる（セット番号は見せない）
+  - 評価後のセット内再出題: 覚えてない→3枚後 / だいたいOK→8枚後 / 余裕→出ない
+- **今日の復習**: ホーム（キャスト一覧）に「🔁 今日の復習（N枚）」導線
+  - 全動画横断・due到来カードのみ・上限30枚・新規なし
+- **セッション復帰**: リロード/アプリ切替でも同日・同スコープなら続きから復帰
+- **「覚えた」チェックと学習進捗の完全統合**: 語彙一覧のチェック = 出題停止スイッチ
+  - 「余裕」を積み上げたカードは自動でチェックが付く。外すと再出題
+- **学習データの引っ越し**: ヘルプモーダルから進捗のエクスポート/インポート（JSONコピペ）
+- **カード裏面に🔊リプレイボタン**: 音声OFF設定でも単発再生可
+- **ディープリンク**: `https://vlingual-cards.vercel.app/?video=<YouTube動画ID>` で動画の学習画面に直行（概要欄・固定コメントに貼れる）。`?cast=<キャスト名>` も動作。戻るボタンは常に表示
+- **テスト・CI**: `npm test`（vitest 62テスト）/ `npm run validate-csv`（CSV品質チェック）/ GitHub Actionsでpush時に非ブロッキング警告
+- **Vercel Analytics**（Cookieレス）
+- 品詞「スラング」を正式サポート
+
+### Changed
+- **完了画面**: 🎉 +「明日はN枚が復習に来ます」+ 主ボタン「▶ この動画をもう一度見る」+「次のセットへ」。`confirm()` ダイアログと「進捗リセット」ボタンを廃止
+- **CSVパーサ刷新**: RFC4180準拠 + ヘッダー名ベース。6/7/9列後方互換、未知の追加列にも耐える。不正行は無言スキップせずUIバナーに件数表示。同一動画内の重複行は自動で1枚に統合
+- **PWAインストールバナー**: インストール済み（standalone表示）なら出ない
+- **アーキテクチャ**: App.tsx（UI集約）+ `src/lib/` の純関数（csv.ts / ids.ts / schedule.ts / session.ts / store.ts）+ `src/lib/__tests__/`
+
+### Fixed（データ修正）
+- 列ズレで消えていた4語を復旧（girl-failuring, aura farming, sub (subtitle), absorb）
+- 同一動画内の重複17組を削除、`?si=` トラッキングパラメータ除去、動画タイトルの揺れを統一 → 現在672カード
+
+### Unchanged
+- Service Workerは未実装 → **オフラインは非対応（Phase 2予定）**
+- アカウント不要・無料・広告なし。Node 18 / Vite 5 / React 18
+
+> (未記録: v2.0.0 セッション制学習・3階層ナビ・ライトモード・語彙一覧等)
+
 ## [1.3.1] - 2025-10-25
 
 ### Added
@@ -126,4 +163,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ---
 
 **リポジトリ**: https://github.com/w-udagawa/vlingual-cards
-**デモ**: https://w-udagawa.github.io/vlingual-cards/
+**デモ**: https://vlingual-cards.vercel.app
