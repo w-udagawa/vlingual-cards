@@ -145,6 +145,7 @@ accomplish,達成する,中級,動詞,"例文 (日本語訳)",https://youtu.be/a
 - 対応URL形式（`extractYouTubeId`）: `youtu.be/{ID}` / `youtube.com/watch?v={ID}` / `youtube.com/embed/{ID}`
 - サムネイル: `https://img.youtube.com/vi/{VIDEO_ID}/mqdefault.jpg`（APIキー不要、CDN直参照）
 - グループ化: `App.tsx` の `groupCardsByVideo` / `groupCardsByCast`
+- **クリップの並び順は新しい順（最新が上）**。CSVは追記運用なので「後ろの行ほど新しい」を根拠に `groupCardsByCast` で反転している。キャストの代表サムネイルも最新クリップ。キャスト自体の並びはCSV初出順のまま
 
 ## Configuration
 

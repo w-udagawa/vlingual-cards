@@ -59,7 +59,8 @@ function getLevelColor(level: string): string {
   }
 }
 
-// 動画ごとにカードをグループ化（動画タイトルはvideoId初出行を正とする）
+// 動画ごとにカードをグループ化（CSV出現順。動画タイトルはvideoId初出行を正とする）
+// CSVは追記運用なので、後ろの行ほど新しいクリップ = この配列の後ろほど新しい
 function groupCardsByVideo(cards: VocabCard[]): VideoGroup[] {
   const grouped = new Map<string, VideoGroup>();
 
@@ -112,6 +113,15 @@ function groupCardsByCast(cards: VocabCard[]): CastGroup[] {
     const castGroup = castMap.get(castId)!;
     castGroup.videos.push(videoGroup);
     castGroup.wordCount += videoGroup.wordCount;
+  });
+
+  // クリップは新しい順（CSV出現順の逆）に並べ、代表サムネイルも最新クリップに合わせる。
+  // キャストの並び順自体はCSV初出順のまま（クリップの並び替えに引きずらせない）
+  castMap.forEach(castGroup => {
+    castGroup.videos.reverse();
+    if (castGroup.videos[0]) {
+      castGroup.thumbnailUrl = castGroup.videos[0].thumbnailUrl;
+    }
   });
 
   return Array.from(castMap.values()).sort((a, b) => {
