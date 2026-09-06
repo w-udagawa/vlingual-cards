@@ -115,7 +115,10 @@ mastered ──(覚えてない)──▶ learning(箱1)
   "version": 1,
   "migratedLegacy": true,
   "cards": {
-    "<cardId>": { "state": "learning", "box": 3, "due": 20701, "lastRatedDay": 20694, "lapses": 1 }
+    "<cardId>": {
+      "state": "learning", "box": 3, "due": 20701, "lastRatedDay": 20694, "lapses": 1,
+      "updatedAt": 1757145600000  // 任意。epoch ms。タブ間マージの判定基準（後述）
+    }
   },
   "session": {  // null = アクティブセッションなし
     "scopeId": "video:cG1mzF2rc4M",  // "video:<id>" | "cast:<名前>" | "all" | "review"
@@ -126,10 +129,13 @@ mastered ──(覚えてない)──▶ learning(箱1)
 ```
 
 - **セッション復帰時は必ずサニタイズする**（`sanitizeQueue`）: デッキに存在しない・スコープ外・masteredになったカードをキューから除外してから復帰。空になったらセットを組み直す。
-- **書き込み前にディスクを再読込**し、カードごとに`lastRatedDay`が新しい方を採用してマージ（複数タブのlast-write-wins巻き戻り緩和）。
-- 破損・version不一致で読めないデータは `vlc_learning_v1_backup` に一度だけ退避してから空で開始する（無言の全消去を復旧可能にする）。quota超過等はtry/catchで握り、学習は続行できる。
+- **`updatedAt`（タブ間マージの判定基準）**: カードレコードは任意で`updatedAt`（epoch ms）を持つ。評価・「覚えた」チェックなど、そのカードを実際に変更した瞬間に付与する（`schedule.ts`の遷移表そのものは変えない。あくまでストレージ層のメタデータ）。**存在しない場合は0扱い**（レガシーレコード。読み込み時にフィールドを補完したり書き換えたりはしない。スキーマversionも上げていない）。
+- **書き込み前にディスクを再読込**し、カードごとに`updatedAt`が新しい方を採用してマージ（複数タブのlast-write-wins巻き戻り緩和）。**同値タイ（レガシー同士＝0対0を含む）はメモリ側＝この保存を優先**。`lastRatedDay`は同日ルール（評価ロジック）専用で、マージの判定には使わない — 同日に2つのタブがそれぞれ別カードを更新した場合、`lastRatedDay`が同じでも`updatedAt`で新しい方を判定できるため、片方のタブの保存がもう片方の新しい変更（手動チェック等）を巻き戻さない。
+- **`storage`イベントによるタブ間の即時反映**: 他タブがこのキーへ書き込むと、開いている他のタブは`storage`イベントを受け取る（`applyStorageEvent`）。カード単位で`updatedAt`が自分より新しいものだけを取り込み、同値以下は無視する（巻き戻し無し）。**アクティブセッション（`session`/出題キュー）はタブごとの状態のまま**で、他タブの書き込みでは変更しない。
+- **保存結果**: `saveStore`は`{ store, persisted, reason? }`を返す。`persisted:false`のとき`reason`は`quota`（容量超過）/ `denied`（書き込み禁止・プライベートモード等）/ `unavailable`（`localStorage`自体に触れない）/ `unknown`のいずれか。呼び出し側（UI）は`persisted:false`のとき「この端末に保存できません。データを書き出してください」を表示し、書き出し（エクスポート）導線に誘導する。保存に失敗しても、マージ済みの内容はメモリ上の`store`として返るため学習自体は続行できる。
+- **読み込み結果**: `loadStore`は`{ store, dropped }`を返す。`dropped`は検証で落としたカードレコード数。ストア全体が壊れている/version不一致の場合は従来どおり `vlc_learning_v1_backup` に一度だけ退避して空で開始する。**一部のカードレコードだけが不正**な場合は、ストア自体は読み込みつつ、元の生データを`vlingual:backup:<退避時刻のepoch ms>`へ退避する（**常に最新1件だけを保持**。古い退避キーは新しい退避の前に削除する）。UIは`dropped > 0`のとき一度だけ件数と「復元用のバックアップがある」旨を通知する。自動修復は行わない。
 - 旧キー `vocabulary_checked` は初回に mastered へ変換（`migratedLegacy`フラグで一度きり）。**旧キー自体は削除しない**（ロールバック安全弁）。**サンプルデータへのフォールバック中は移行を実行しない**（実カードとIDが一致しないままフラグだけ立つのを防ぐ）。
-- エクスポート/インポート: `{"app":"vlingual-cards","version":1,"cards":{...}}` のJSONコピペ。インポートはカードごとに`lastRatedDay`が新しい方を採用（**同値タイでは現在の進捗が勝つ** — 当日の学習を古いバックアップで巻き戻さない）。iOS Safariの7日eviction（未インストールPWAのlocalStorage削除）への保険。
+- エクスポート/インポート: `{"app":"vlingual-cards","version":1,"cards":{...}}` のJSONコピペ。インポートはカードごとに`updatedAt`が新しい方を採用（**同値タイでは現在の進捗が勝つ** — 当日の学習を古いバックアップで巻き戻さない）。iOS Safariの7日eviction（未インストールPWAのlocalStorage削除）への保険。
 
 ## ヘルプに書いてよい説明（原文）
 

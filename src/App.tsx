@@ -20,14 +20,15 @@ import {
   setUnlearnedManually,
   todayLocal
 } from './lib/schedule';
-import type { ActiveSession, LearningStore } from './lib/store';
+import type { ActiveSession, LearningStore, SaveFailureReason } from './lib/store';
 import {
   emptyStore,
   loadStore,
   saveStore,
   migrateLegacyChecked,
   exportProgress,
-  importProgress
+  importProgress,
+  applyStorageEvent
 } from './lib/store';
 import {
   buildStudySet,
@@ -425,6 +426,12 @@ function App() {
   const [showAgencyOrderModal, setShowAgencyOrderModal] = useState(false);
   const [tempOrder, setTempOrder] = useState<string[]>([]);
 
+  // 保存できない/一部レコードを読めなかった旨の通知
+  const [saveIssue, setSaveIssue] = useState<SaveFailureReason | null>(null);
+  const [saveIssueDismissed, setSaveIssueDismissed] = useState(false);
+  const [droppedCount, setDroppedCount] = useState(0);
+  const [droppedNoticeDismissed, setDroppedNoticeDismissed] = useState(false);
+
   const cardMap = useMemo(() => new Map(allCards.map(c => [c.id, c])), [allCards]);
   const currentCard = currentId ? cardMap.get(currentId) ?? null : null;
   const today = todayLocal();
@@ -463,11 +470,22 @@ function App() {
     setIsTransitioning(false);
   };
 
+  // 保存結果の通知状態を更新（persisted=trueなら通知を消す）
+  const reportSaveResult = (persisted: boolean, reason?: SaveFailureReason) => {
+    if (persisted) {
+      setSaveIssue(null);
+    } else {
+      setSaveIssue(reason ?? 'unknown');
+      setSaveIssueDismissed(false); // 新しい失敗は、前回閉じていても改めて出す
+    }
+  };
+
   // ストアへの書き込み（別タブの書き込みをマージしてから保存）
   const commitStore = (nextCards: Record<string, CardProgress>, nextSession: ActiveSession | null) => {
-    const saved = saveStore({ ...storeRef.current, cards: nextCards, session: nextSession });
-    storeRef.current = saved;
-    setProgress(saved.cards);
+    const result = saveStore({ ...storeRef.current, cards: nextCards, session: nextSession });
+    storeRef.current = result.store;
+    setProgress(result.store.cards);
+    reportSaveResult(result.persisted, result.reason);
   };
 
   // デッキ適用（CSV成功/サンプルフォールバック共通）
@@ -478,10 +496,16 @@ function App() {
     setCsvWarnings(warnings);
     setUsingSample(sample);
 
-    let store = loadStore();
+    const { store: loaded, dropped } = loadStore();
+    let store = loaded;
+    if (dropped > 0) setDroppedCount(dropped);
     if (!sample) {
       const migrated = migrateLegacyChecked(store, cards, todayLocal());
-      store = migrated === store ? store : saveStore(migrated);
+      if (migrated !== store) {
+        const result = saveStore(migrated);
+        store = result.store;
+        reportSaveResult(result.persisted, result.reason);
+      }
     }
     storeRef.current = store;
     setProgress(store.cards);
@@ -581,7 +605,11 @@ function App() {
 
     const day = todayLocal();
     const prev = storeRef.current.cards[currentId];
-    const nextProgress = { ...storeRef.current.cards, [currentId]: applyRating(prev, type, day) };
+    // updatedAt: タブ間マージの判定基準（同日ルールとは別に、常に「今触った」印を付ける）
+    const nextProgress = {
+      ...storeRef.current.cards,
+      [currentId]: { ...applyRating(prev, type, day), updatedAt: Date.now() }
+    };
     const rest = queue.slice(1);
     const nextQueue = reinsert(rest, currentId, type);
 
@@ -748,7 +776,7 @@ function App() {
   const toggleVocabCheck = (card: VocabCard) => {
     const day = todayLocal();
     const prev = storeRef.current.cards[card.id];
-    const next = isMastered(prev) ? setUnlearnedManually(prev, day) : setMasteredManually(prev, day);
+    const next = { ...(isMastered(prev) ? setUnlearnedManually(prev, day) : setMasteredManually(prev, day)), updatedAt: Date.now() };
     const nextCards = { ...storeRef.current.cards, [card.id]: next };
 
     let session = storeRef.current.session;
@@ -801,8 +829,10 @@ function App() {
       );
     }
 
-    storeRef.current = saveStore({ ...imported, session });
+    const result = saveStore({ ...imported, session });
+    storeRef.current = result.store;
     setProgress(storeRef.current.cards);
+    reportSaveResult(result.persisted, result.reason);
     return true;
   };
 
@@ -898,6 +928,20 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allCasts]);
 
+  // 別タブの保存をstorageイベントで取り込む（自タブの保存では発火しない）。
+  // カード単位でupdatedAtが新しい方だけを反映し、当日のセット構成には触れない
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      const merged = applyStorageEvent(storeRef.current, e);
+      if (merged) {
+        storeRef.current = merged;
+        setProgress(merged.cards);
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
+
   // 並び順モーダルが開いたときにtempOrderを初期化
   useEffect(() => {
     if (showAgencyOrderModal && sortedAgencyNames.length > 0) {
@@ -951,6 +995,24 @@ function App() {
     </div>
   );
 
+  // この端末に保存できない（quota超過・保存禁止・localStorage不可）: 消えるまで出し続け、
+  // 手動で閉じることもできる（新しい失敗があれば再度出す）
+  const saveIssueBanner = saveIssue && !saveIssueDismissed && (
+    <div className="warning-banner">
+      ⚠️ この端末に保存できません。データを書き出してください
+      <button onClick={() => setShowHelp(true)} className="btn-link">書き出す</button>
+      <button onClick={() => setSaveIssueDismissed(true)} className="btn-link">閉じる</button>
+    </div>
+  );
+
+  // 起動時の読み込みで一部の進捗レコードを検証落ちさせた場合の一度きりの通知
+  const droppedBanner = droppedCount > 0 && !droppedNoticeDismissed && (
+    <div className="warning-banner">
+      ⚠️ 読み込めない進捗データが{droppedCount}件あり、復元用に退避しました
+      <button onClick={() => setDroppedNoticeDismissed(true)} className="btn-link">閉じる</button>
+    </div>
+  );
+
   const installBanner = showInstallBanner && <InstallBanner onDismiss={handleDismissInstallBanner} />;
 
   // ローディング画面
@@ -991,6 +1053,8 @@ function App() {
         <main className="gallery-container">
           {sampleBanner}
           {warningsBanner}
+          {saveIssueBanner}
+          {droppedBanner}
 
           {/* 今日の復習 */}
           {dueTodayCount > 0 && (
@@ -1127,6 +1191,8 @@ function App() {
         </header>
 
         <main className="gallery-container">
+          {saveIssueBanner}
+          {droppedBanner}
           <div className="video-grid">
             {allVideos.map(video => {
               const masteredCount = countMastered(video.cards, progress);
@@ -1233,6 +1299,8 @@ function App() {
 
       {sampleBanner}
       {warningsBanner}
+      {saveIssueBanner}
+      {droppedBanner}
 
       <main className="card-container">
         {currentCard ? (
