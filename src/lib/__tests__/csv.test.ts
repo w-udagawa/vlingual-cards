@@ -17,6 +17,9 @@ const row = (word: string, extra: Partial<Record<string, string>> = {}) =>
   ].join(',');
 
 describe('parseCsvRows (RFC 4180)', () => {
+  it('閉じていない引用符で後続の教材を飲み込む前に失敗する', () => {
+    expect(() => parseCsvRows('a,"broken\nnext,row')).toThrow(/引用符/);
+  });
   it('引用符内のカンマ・エスケープされた引用符を扱える', () => {
     const rows = parseCsvRows('a,"b,c","he said ""hi"""\n');
     expect(rows).toEqual([['a', 'b,c', 'he said "hi"']]);

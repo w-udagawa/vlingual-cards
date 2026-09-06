@@ -65,6 +65,7 @@ export function parseCsvRows(text: string): string[][] {
       field += ch;
     }
   }
+  if (inQuotes) throw new Error('CSVの引用符が閉じられていません');
   if (field !== '' || row.length > 0) pushRow();
   return rows;
 }

@@ -1,3 +1,5 @@
+import { groupCardsByCast } from './lib/catalog';
+import { readPreference, writePreference } from './lib/preferences';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import './App.css';
 import type { VocabCard, VideoGroup, CastGroup } from './types';
@@ -44,11 +46,6 @@ const devLog = (...args: unknown[]) => {
   if (import.meta.env.DEV) console.log(...args);
 };
 
-// サムネイルURL生成（APIキー不要のYouTube CDN直参照）
-function getThumbnailUrl(videoId: string): string {
-  return `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`;
-}
-
 // 難易度に応じた色を取得
 function getLevelColor(level: string): string {
   switch (level) {
@@ -57,78 +54,6 @@ function getLevelColor(level: string): string {
     case '上級': return 'var(--level-advanced)';
     default: return '#888';
   }
-}
-
-// 動画ごとにカードをグループ化（CSV出現順。動画タイトルはvideoId初出行を正とする）
-// CSVは追記運用なので、後ろの行ほど新しいクリップ = この配列の後ろほど新しい
-function groupCardsByVideo(cards: VocabCard[]): VideoGroup[] {
-  const grouped = new Map<string, VideoGroup>();
-
-  cards.forEach(card => {
-    if (!grouped.has(card.videoId)) {
-      grouped.set(card.videoId, {
-        id: card.videoId,
-        title: card.動画タイトル || `動画${grouped.size + 1}`,
-        url: card.動画URL,
-        thumbnailUrl: getThumbnailUrl(card.videoId),
-        cards: [],
-        wordCount: 0
-      });
-    }
-    const group = grouped.get(card.videoId)!;
-    group.cards.push(card);
-    group.wordCount++;
-  });
-
-  return Array.from(grouped.values());
-}
-
-// キャスト名をURL用スラッグに変換
-function createCastSlug(castName: string): string {
-  return encodeURIComponent(castName);
-}
-
-// キャストごとにカードをグループ化
-function groupCardsByCast(cards: VocabCard[]): CastGroup[] {
-  const videoGroups = groupCardsByVideo(cards);
-  const castMap = new Map<string, CastGroup>();
-
-  videoGroups.forEach(videoGroup => {
-    const firstCard = videoGroup.cards[0];
-    const castName = firstCard?.キャスト名 || '未分類';
-    const agency = firstCard?.事務所;
-    const castId = createCastSlug(castName);
-
-    if (!castMap.has(castId)) {
-      castMap.set(castId, {
-        id: castId,
-        name: castName,
-        agency: agency,
-        videos: [],
-        wordCount: 0,
-        thumbnailUrl: videoGroup.thumbnailUrl
-      });
-    }
-
-    const castGroup = castMap.get(castId)!;
-    castGroup.videos.push(videoGroup);
-    castGroup.wordCount += videoGroup.wordCount;
-  });
-
-  // クリップは新しい順（CSV出現順の逆）に並べ、代表サムネイルも最新クリップに合わせる。
-  // キャストの並び順自体はCSV初出順のまま（クリップの並び替えに引きずらせない）
-  castMap.forEach(castGroup => {
-    castGroup.videos.reverse();
-    if (castGroup.videos[0]) {
-      castGroup.thumbnailUrl = castGroup.videos[0].thumbnailUrl;
-    }
-  });
-
-  return Array.from(castMap.values()).sort((a, b) => {
-    const agencyA = a.agency || 'ZZZZ未分類';
-    const agencyB = b.agency || 'ZZZZ未分類';
-    return agencyA.localeCompare(agencyB, 'ja');
-  });
 }
 
 // 音声読み上げ（設定に関係なく単発で鳴らす）
@@ -596,10 +521,10 @@ function App() {
 
   // 設定読み込み
   const loadSettings = () => {
-    const audioStored = localStorage.getItem(AUDIO_ENABLED_KEY);
+    const audioStored = readPreference(AUDIO_ENABLED_KEY);
     if (audioStored) setAudioEnabled(audioStored === 'true');
 
-    const savedTheme = localStorage.getItem(THEME_PREFERENCE_KEY);
+    const savedTheme = readPreference(THEME_PREFERENCE_KEY);
     if (savedTheme === 'light' || savedTheme === 'dark') {
       setTheme(savedTheme);
     } else {
@@ -607,11 +532,13 @@ function App() {
       setTheme(prefersDark ? 'dark' : 'light');
     }
 
-    const savedOrder = localStorage.getItem(AGENCY_ORDER_KEY);
+    const savedOrder = readPreference(AGENCY_ORDER_KEY);
     if (savedOrder) {
       try {
         const parsed = JSON.parse(savedOrder);
-        if (Array.isArray(parsed)) setAgencyOrder(parsed);
+        if (Array.isArray(parsed) && parsed.every(item => typeof item === 'string')) {
+          setAgencyOrder([...new Set<string>(parsed)]);
+        }
       } catch (e) {
         console.error('Failed to parse agency order:', e);
       }
@@ -692,14 +619,14 @@ function App() {
   const toggleAudio = () => {
     const newValue = !audioEnabled;
     setAudioEnabled(newValue);
-    localStorage.setItem(AUDIO_ENABLED_KEY, String(newValue));
+    writePreference(AUDIO_ENABLED_KEY, String(newValue));
   };
 
   // テーマトグル
   const toggleTheme = () => {
     const newTheme = theme === 'dark' ? 'light' : 'dark';
     setTheme(newTheme);
-    localStorage.setItem(THEME_PREFERENCE_KEY, newTheme);
+    writePreference(THEME_PREFERENCE_KEY, newTheme);
   };
 
   // ナビゲーション（show* はURLを更新しない。handle* はURL更新も行う）
@@ -787,7 +714,7 @@ function App() {
   // インストールバナーを閉じる
   const handleDismissInstallBanner = () => {
     setShowInstallBanner(false);
-    localStorage.setItem(INSTALL_BANNER_DISMISSED_KEY, 'true');
+    writePreference(INSTALL_BANNER_DISMISSED_KEY, 'true');
   };
 
   // 語彙一覧
@@ -882,7 +809,7 @@ function App() {
   // 事務所並び順
   const saveAgencyOrder = (order: string[]) => {
     setAgencyOrder(order);
-    localStorage.setItem(AGENCY_ORDER_KEY, JSON.stringify(order));
+    writePreference(AGENCY_ORDER_KEY, JSON.stringify(order));
   };
 
   const moveAgencyUp = (index: number) => {
@@ -915,13 +842,17 @@ function App() {
     loadCSV();
 
     // PWAインストールバナー（初回のみ・すでにインストール済みなら出さない）
-    const dismissed = localStorage.getItem(INSTALL_BANNER_DISMISSED_KEY);
+    const dismissed = readPreference(INSTALL_BANNER_DISMISSED_KEY);
     const isStandalone =
       window.matchMedia('(display-mode: standalone)').matches ||
       (navigator as Navigator & { standalone?: boolean }).standalone === true;
-    if (!dismissed && !isStandalone) {
-      setTimeout(() => setShowInstallBanner(true), 3000);
-    }
+    const installTimer = !dismissed && !isStandalone
+      ? setTimeout(() => setShowInstallBanner(true), 3000)
+      : undefined;
+    return () => {
+      clearTimeout(installTimer);
+      if (rateTimerRef.current !== null) clearTimeout(rateTimerRef.current);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

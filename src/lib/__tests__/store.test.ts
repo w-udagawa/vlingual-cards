@@ -56,6 +56,19 @@ const makeCard = (videoId: string, word: string): VocabCard => ({
 beforeEach(() => storage.clear());
 
 describe('load/save/validate', () => {
+  it.each([0, -1, 6, 1.5, NaN, Infinity])('学習中の不正な箱 %s を受け入れない', box => {
+    expect(validateStore({ version: 1, cards: { bad: learning(box, D) } })?.cards.bad).toBeUndefined();
+  });
+
+  it('配列を進捗マップとして扱わない', () => {
+    expect(validateStore({ version: 1, cards: [] })).toBeNull();
+  });
+
+  it('非有限の期日・負の失敗回数・小数の日付を受け入れない', () => {
+    for (const change of [{ due: Infinity }, { lapses: -1 }, { lastRatedDay: 1.5 }]) {
+      expect(validateStore({ version: 1, cards: { bad: { ...learning(1, D), ...change } } })?.cards.bad).toBeUndefined();
+    }
+  });
   it('空のときはemptyStore', () => {
     expect(loadStore()).toEqual(emptyStore());
   });

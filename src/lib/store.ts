@@ -32,10 +32,11 @@ function isValidProgress(p: unknown): p is CardProgress {
   const o = p as Record<string, unknown>;
   return (
     (o.state === 'new' || o.state === 'learning' || o.state === 'mastered') &&
-    typeof o.box === 'number' &&
-    typeof o.due === 'number' &&
-    typeof o.lastRatedDay === 'number' &&
-    typeof o.lapses === 'number'
+    Number.isSafeInteger(o.box) && Number(o.box) >= 0 && Number(o.box) <= 5 &&
+    (o.state !== 'learning' || Number(o.box) >= 1) &&
+    Number.isSafeInteger(o.due) &&
+    Number.isSafeInteger(o.lastRatedDay) &&
+    Number.isSafeInteger(o.lapses) && Number(o.lapses) >= 0
   );
 }
 
@@ -43,7 +44,7 @@ export function validateStore(raw: unknown): LearningStore | null {
   if (typeof raw !== 'object' || raw === null) return null;
   const o = raw as Record<string, unknown>;
   if (o.version !== 1) return null;
-  if (typeof o.cards !== 'object' || o.cards === null) return null;
+  if (typeof o.cards !== 'object' || o.cards === null || Array.isArray(o.cards)) return null;
   const cards: Record<string, CardProgress> = {};
   for (const [id, p] of Object.entries(o.cards as Record<string, unknown>)) {
     if (isValidProgress(p)) cards[id] = p;
@@ -53,13 +54,13 @@ export function validateStore(raw: unknown): LearningStore | null {
   if (
     s &&
     typeof s.scopeId === 'string' &&
-    typeof s.day === 'number' &&
+    Number.isSafeInteger(s.day) &&
     Array.isArray(s.queue) &&
     s.queue.every(q => typeof q === 'string')
   ) {
     session = {
       scopeId: s.scopeId,
-      day: s.day,
+      day: s.day as number,
       queue: s.queue as string[],
     };
   }
