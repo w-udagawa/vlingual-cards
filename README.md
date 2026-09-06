@@ -21,7 +21,7 @@ Vlingual Cardsは、YouTubeチャンネル「Vlingual Channel」の英語学習�
 - ✅ **ディープリンク** - `?video=<動画ID>` で動画の学習画面に直行（概要欄・固定コメントに貼れる）
 - ✅ **PWA対応** - ホーム画面に追加してアプリのように利用可能
 - ✅ **レスポンシブデザイン** - スマホ・タブレット・PC対応
-- ✅ **Vercel Analytics** - Cookieレスのアクセス解析
+- ✅ **Vercel Analytics** - Cookieレスのアクセス解析。`deck_open`/`study_start`/`study_complete`/`review_start`/`video_return` の学習ファネルイベントも送信（Hobbyプランでは記録されず、Proで有効。詳細は[docs/analytics.md](docs/analytics.md)）
 
 **注意**: Service Workerは未実装のため、**オフラインでは利用できません**（Phase 2で対応予定）。
 

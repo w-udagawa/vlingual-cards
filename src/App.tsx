@@ -1,5 +1,6 @@
 import { groupCardsByCast } from './lib/catalog';
 import { readPreference, writePreference } from './lib/preferences';
+import { trackEvent } from './lib/analytics';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import './App.css';
 import type { VocabCard, VideoGroup, CastGroup } from './types';
@@ -387,6 +388,15 @@ function makeSession(scopeId: string, day: number, queue: string[]): ActiveSessi
   return queue.length > 0 ? { scopeId, day, queue } : null;
 }
 
+// 学習イベント計測用: scopeId（"video:<id>" | "cast:<name>" | "all" | "review"）から
+// video_id / session_mode を導く（正典に新しいscope種別を増やさない限りここだけ直せば良い）
+function sessionModeForScope(scopeId: string): 'video' | 'review' {
+  return scopeId === 'review' ? 'review' : 'video';
+}
+function videoIdForScope(scopeId: string): string | null {
+  return scopeId.startsWith('video:') ? scopeId.slice('video:'.length) : null;
+}
+
 function App() {
   // データ
   const [allCards, setAllCards] = useState<VocabCard[]>([]);
@@ -603,6 +613,14 @@ function App() {
   const handleRate = (type: Rating) => {
     if (!currentId || isTransitioning || !scopeId) return;
 
+    // study_start / review_start: そのスコープでの最初の評価だけ送る
+    // （analytics.ts のセッションガードが同一デッキへの二重送信を防ぐ）
+    const mode = sessionModeForScope(scopeId);
+    if (scopeId === 'review') {
+      trackEvent('review_start', { session_mode: 'review' });
+    }
+    trackEvent('study_start', { video_id: videoIdForScope(scopeId), session_mode: mode });
+
     const day = todayLocal();
     const prev = storeRef.current.cards[currentId];
     // updatedAt: タブ間マージの判定基準（同日ルールとは別に、常に「今触った」印を付ける）
@@ -612,6 +630,11 @@ function App() {
     };
     const rest = queue.slice(1);
     const nextQueue = reinsert(rest, currentId, type);
+
+    // study_complete: このスコープの評価でキューが空になった（＝セットをやり切った）瞬間
+    if (nextQueue.length === 0) {
+      trackEvent('study_complete', { video_id: videoIdForScope(scopeId), session_mode: mode });
+    }
 
     devLog('[CARD_RATE]', {
       operation: 'handleRate',
@@ -674,11 +697,13 @@ function App() {
     setScreen('video-list');
   };
 
-  const showVideo = (video: VideoGroup) => {
+  // entrySource: "link" = ?video= 直リンクから開いた / "app" = 動画一覧からのクリック
+  const showVideo = (video: VideoGroup, entrySource: 'link' | 'app' = 'app') => {
     // 戻る導線のためにキャストを逆引きして常にセットする（?video= 直リンク対応）
     const cast = allCasts.find(c => c.videos.some(v => v.id === video.id)) ?? null;
     if (cast) setSelectedCast(cast);
     setSelectedVideo(video);
+    trackEvent('deck_open', { video_id: video.id, entry_source: entrySource });
     enterStudy(`video:${video.id}`, video.cards);
   };
 
@@ -688,7 +713,7 @@ function App() {
   };
 
   const handleSelectVideo = (video: VideoGroup) => {
-    showVideo(video);
+    showVideo(video, 'app');
     window.history.pushState({}, '', `?video=${video.id}`);
   };
 
@@ -902,7 +927,7 @@ function App() {
       if (videoParam) {
         const video = allCasts.flatMap(c => c.videos).find(v => v.id === videoParam);
         if (video) {
-          showVideo(video);
+          showVideo(video, 'link');
           return;
         }
       }
@@ -1355,7 +1380,10 @@ function App() {
                     target="_blank"
                     rel="noopener noreferrer"
                     className="video-link"
-                    onClick={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      trackEvent('video_return', { video_id: currentCard.videoId, placement: 'card' });
+                    }}
                   >
                     ▶ 動画で確認
                   </a>
@@ -1404,6 +1432,7 @@ function App() {
                   target="_blank"
                   rel="noopener noreferrer"
                   className="btn-video-primary"
+                  onClick={() => trackEvent('video_return', { video_id: selectedVideo.id, placement: 'complete' })}
                 >
                   ▶ この動画をもう一度見る
                 </a>
