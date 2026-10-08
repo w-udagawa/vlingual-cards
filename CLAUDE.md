@@ -26,7 +26,7 @@ npm run preview
 # ESLint実行
 npm run lint
 
-# ユニットテスト（vitest、62テスト）
+# ユニットテスト（vitest）
 npm test
 
 # CSV品質チェック（列数・難易度・タイトル揺れ・重複などを検査）
@@ -51,7 +51,8 @@ UIは **src/App.tsx** に集約し、ロジックは **src/lib/** の純関数�
 - 音声読み上げ（Web Speech API）+ カード裏面の🔊リプレイボタン
 - 語彙一覧モーダル・ヘルプモーダル・PWAインストールバナー
 - テーマ切替（ダーク/ライト）、事務所の並び替え
-- ディープリンク処理（`?video=` / `?cast=`）
+- ディープリンク処理（`?video=` / `?cast=` / `?reader=`）
+- リスニングリーダーは別ファイル `src/Reader.tsx`（下の「リスニングリーダー」参照）
 
 **src/lib/**（純関数。副作用はstore.tsのlocalStorage入出力のみ）:
 | ファイル | 責務 | 主な関数 |
@@ -106,10 +107,38 @@ UIは **src/App.tsx** に集約し、ロジックは **src/lib/** の純関数�
 | `theme_preference` | ダーク/ライトテーマ |
 | `agency_order` | 事務所の表示順 |
 | `install_banner_dismissed` | PWAインストールバナーを閉じたか |
+| `vlc_reader_show_ja` | リスニングリーダーの和訳表示（`"true"`/`"false"`、既定 OFF） |
+| `vlc_reader_rate` | リスニングリーダーの再生速度（`"0.75"`/`"1"`/`"1.25"`） |
 | `vlc_learning_v1_backup` | 破損・version不一致で読めなかった進捗データの退避先（自動生成・通常は存在しない） |
 | `vocabulary_checked` | **旧進捗キー（読み取りのみ）**。初回に `vlc_learning_v1` へ移行済み。ロールバック安全弁として削除しない |
 
-キー定数は `src/types.ts`（`LEARNING_STORE_KEY` のみ `src/lib/store.ts`）に定義。
+キー定数は `src/types.ts`（`LEARNING_STORE_KEY` のみ `src/lib/store.ts`）に定義。**リスニングリーダー用の新しいキーは必ず `vlc_reader_` で始める**（学習進捗のキーとは混ぜない）。
+
+## リスニングリーダー（`?reader=`）
+
+公開済みクリップの YouTube 動画を埋め込み、再生位置に合わせて英文を強調・自動スクロールする画面。文をタップするとその文の頭へシーク。学習進捗（`vlc_learning_v1`）には一切触れない。
+
+- **入口**: ホームの「🎧 リスニングリーダー」（`sentences/index.json` が読めて1本以上あるときだけ表示。取得失敗・空なら黙って隠し、他の画面は従来どおり）と、ディープリンク `?reader=<YouTube動画ID>`
+- **実装**: UI は `src/Reader.tsx`、同期・検証の純関数は `src/lib/reader.ts`（`findActiveIndex` = 二分探索。最初の文より前は -1、文の隙間では直前の文を保つ）、取得は `src/lib/readerData.ts`、IFrame API の遅延読み込みは `src/lib/youtubeApi.ts`（リーダーを開いたときだけ `<script>` を差し込む）。位置のポーリングは再生中だけ 100ms 間隔
+- **プレーヤーは常に表示**（YouTube の規約上、映像を隠した音声だけの再生はしない）。最小 200×200px・sticky で上部固定。iOS/Safari は画面ロックで止まることがある旨を画面に表示
+- 自動スクロールは利用者が自分でスクロールすると止まり、「現在位置へ」で再開。速度 0.75x / 1x / 1.25x、和訳の表示切替
+- 計測イベント `reader_open`（`docs/analytics.md`）
+
+### 文データの契約（clipper 側が書き出す）
+
+```
+public/sentences/index.json
+  { "version": 1, "items": [ { "videoId", "clipId", "title", "cast", "count" } ] }
+public/sentences/<YouTube動画ID>.json
+  { "version": 1, "videoId", "clipId", "title", "cast", "durationSec": number|null,
+    "sentences": [ { "i", "start", "end", "en", "ja": string|null, "spoken": "en"|"ja"|null } ] }
+```
+
+- 時刻は **YouTube 動画そのものの秒軸**
+- `spoken: "ja"` = 配信者が日本語で話し、`en` はその英訳。淡色・斜体＋「日本語の発話（英訳）」ラベルで出す（シークは可能）
+- 検証は `parseSentenceDoc` / `parseSentenceIndex`。`version !== 1`・不正な動画ID・要求IDとの食い違いは全体を拒否、壊れた行だけなら捨てて件数をバナー表示。文は開始時刻順に並べ直す
+- 開発用の手書き見本は `fixtures/sentences/`（`public/` の外なので本番に入らない。動画は非公開のため再生はできず、一覧・強調の確認用）:
+  `VITE_SENTENCES_BASE=/fixtures/sentences npm run dev`（Git Bash では先頭に `MSYS_NO_PATHCONV=1` を付ける。付けないとパスが `C:/Program Files/Git/...` に書き換わる）
 
 ## CSV Data Source
 

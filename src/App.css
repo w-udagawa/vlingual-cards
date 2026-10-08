@@ -1992,3 +1992,251 @@
   font-size: 13px;
   color: var(--text-secondary);
 }
+
+/* ========================
+   リスニングリーダー
+   ======================== */
+
+/* ホームの導線（今日の復習と同じ見た目） */
+.reader-entry .review-entry-title {
+  color: var(--text-primary);
+}
+
+/* 一覧（動画カードを button で使う） */
+.reader-list-lead {
+  color: var(--text-secondary);
+  font-size: 14px;
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.reader-list-card {
+  display: block;
+  padding: 0;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+}
+
+.reader-list-card:hover {
+  transform: translateY(-2px);
+}
+
+.reader-list-card .video-info,
+.reader-list-card .video-title,
+.reader-list-card .video-word-count {
+  display: block;
+}
+
+/* リーダー本体 */
+.reader-container {
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+/* プレーヤーは常に見える位置に固定（YouTube の規約上、映像を隠した音声だけの再生はしない） */
+.reader-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background-color: var(--background);
+  padding-bottom: 8px;
+}
+
+.reader-player {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  min-width: 200px;
+  min-height: 200px;
+  max-height: 40vh;
+  background-color: #000;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.reader-player iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.reader-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.reader-rate {
+  display: flex;
+  gap: 8px;
+}
+
+.reader-chip {
+  min-width: 56px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 2px solid var(--border);
+  background-color: var(--card-bg);
+  color: var(--text-secondary);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.reader-chip.active {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--accent-wash);
+}
+
+.reader-chip:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.reader-chip:hover,
+.reader-sentence:hover,
+.reader-resume:hover {
+  transform: none;
+}
+
+.reader-note {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 4px 0 12px;
+}
+
+.reader-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 40px 16px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.reader-empty .btn-secondary {
+  max-width: 240px;
+}
+
+.reader-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  /* 末尾の文も画面中央まで上げられるように */
+  padding-bottom: 50vh;
+}
+
+.reader-sentence {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  min-height: 56px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 2px solid transparent;
+  background-color: var(--card-bg);
+  color: var(--text-secondary);
+  text-align: left;
+  font: inherit;
+}
+
+.reader-sentence-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.reader-time {
+  font-variant-numeric: tabular-nums;
+}
+
+.reader-en {
+  font-size: 19px;
+  line-height: 1.5;
+  overflow-wrap: break-word;
+}
+
+.reader-ja {
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+/* 現在の文 */
+.reader-sentence.active {
+  border-color: var(--primary);
+  background: var(--accent-wash);
+  color: var(--text-primary);
+}
+
+.reader-sentence.active .reader-en {
+  font-weight: 700;
+}
+
+/* 日本語で話した行（英文は英訳）: 淡色＋ラベル。強調中も本文は太字にしない */
+.reader-sentence.spoken-ja .reader-en {
+  font-size: 16px;
+  font-style: italic;
+  opacity: 0.75;
+}
+
+.reader-sentence.spoken-ja.active {
+  border-style: dashed;
+  background: var(--surface-sunken);
+}
+
+.reader-sentence.spoken-ja.active .reader-en {
+  font-weight: 400;
+}
+
+.reader-ja-label {
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+/* 自動スクロールを止めたときの「現在位置へ」 */
+.reader-resume {
+  position: fixed;
+  left: 50%;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 10;
+  min-height: 48px;
+  padding: 12px 24px;
+  border-radius: 999px;
+  background-color: var(--primary);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.reader-resume:hover {
+  transform: translateX(-50%);
+}
+
+@media (max-width: 480px) {
+  .reader-en {
+    font-size: 17px;
+  }
+
+  .reader-sentence.spoken-ja .reader-en {
+    font-size: 15px;
+  }
+}

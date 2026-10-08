@@ -162,5 +162,9 @@ export const THEME_PREFERENCE_KEY = "theme_preference";
 export const AGENCY_ORDER_KEY = "agency_order";
 export const INSTALL_BANNER_DISMISSED_KEY = "install_banner_dismissed";
 
+// リスニングリーダーの表示設定（学習進捗とは無関係。新しいキーは必ず vlc_reader_ で始める）
+export const READER_SHOW_JA_KEY = "vlc_reader_show_ja"; // "true" | "false"
+export const READER_RATE_KEY = "vlc_reader_rate"; // "0.75" | "1" | "1.25"
+
 // 旧進捗キー（v3.0.0で vlc_learning_v1 に移行済み。読み取り専用・削除しない）
 export const VOCABULARY_CHECKED_KEY = "vocabulary_checked";

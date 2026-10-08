@@ -27,6 +27,7 @@
 | `study_start` | そのスコープ（動画/キャスト全体/全動画/復習）での最初の評価ボタン押下 | `video_id`（動画スコープのみ。それ以外は`null`）, `session_mode`（`"video"` \| `"review"`） | 同一 `video_id` はセッション中1回のみ |
 | `study_complete` | 評価によりキューが空になった（そのセットをやり切った）瞬間 | `video_id`, `session_mode` | 同一 `video_id` はセッション中1回のみ |
 | `review_start` | 「今日の復習」スコープでの最初の評価ボタン押下 | `session_mode`（常に`"review"`） | セッション中1回のみ |
+| `reader_open` | リスニングリーダーで動画を開いたとき | `video_id`, `entry_source`（`"link"` = `?reader=`直リンク経由 / `"app"` = リーダー一覧からのクリック） | 同一 `video_id` はセッション中1回のみ |
 | `video_return` | 元動画へのリンクをクリックしたとき | `video_id`, `placement`（`"card"` = カード裏面のリンク / `"complete"` = セット完了画面の「もう一度見る」） | ガードなし（毎回送る） |
 
 `study_complete` の `initial_size`（監査文書の提案）はプロパティ2個制限のため送らない。
@@ -37,7 +38,7 @@
 ## ガード（二重送信防止）
 
 `src/lib/analytics.ts` の `trackEvent()` が、`deck_open` / `study_start` /
-`study_complete` / `review_start` について「イベント名 + 1個目のプロパティ値
+`study_complete` / `review_start` / `reader_open` について「イベント名 + 1個目のプロパティ値
 （`video_id` など）」をキーに `sessionStorage` へ一度だけ記録し、以後の同一キー
 呼び出しは静かに無視する。これにより:
 

@@ -1,0 +1,170 @@
+{
+  "version": 1,
+  "videoId": "OLQi4EiMY7Q",
+  "clipId": 0,
+  "title": "【見本】ラーメン屋POVロールプレイ（開発用フィクスチャ）",
+  "cast": "古石ビジュー",
+  "durationSec": 61.08,
+  "sentences": [
+    {
+      "i": 0,
+      "start": 2.0,
+      "end": 4.44,
+      "en": "Welcome back to the ramen shop, everyone!",
+      "ja": "みんな、ラーメン屋におかえり！",
+      "spoken": "en"
+    },
+    {
+      "i": 1,
+      "start": 4.84,
+      "end": 7.28,
+      "en": "Today I'm gonna be your ramen chef.",
+      "ja": "今日は私がラーメンシェフです。",
+      "spoken": "en"
+    },
+    {
+      "i": 2,
+      "start": 7.68,
+      "end": 10.12,
+      "en": "Okay, what would you like to order?",
+      "ja": "さて、ご注文は？",
+      "spoken": "en"
+    },
+    {
+      "i": 3,
+      "start": 10.52,
+      "end": 12.96,
+      "en": "Wait, you want extra garlic? Bold choice.",
+      "ja": "にんにく増し？攻めるねえ。",
+      "spoken": "en"
+    },
+    {
+      "i": 4,
+      "start": 13.36,
+      "end": 16.28,
+      "en": "Let me take my jacket off, it's getting hot in here.",
+      "ja": "上着脱ぐね、暑くなってきた。",
+      "spoken": "en"
+    },
+    {
+      "i": 5,
+      "start": 16.68,
+      "end": 19.24,
+      "en": "I was so excited to open this shop.",
+      "ja": "このお店を開くのすごく楽しみだったの。",
+      "spoken": "ja"
+    },
+    {
+      "i": 6,
+      "start": 19.64,
+      "end": 22.08,
+      "en": "Here's your bowl. Careful, it's really hot.",
+      "ja": "はいどうぞ。熱いから気をつけて。",
+      "spoken": "en"
+    },
+    {
+      "i": 7,
+      "start": 22.48,
+      "end": 24.8,
+      "en": "Do you want some more noodles?",
+      "ja": null,
+      "spoken": "en"
+    },
+    {
+      "i": 8,
+      "start": 25.2,
+      "end": 27.52,
+      "en": "No refills? That's fine, that's fine.",
+      "ja": "おかわりなし？大丈夫、大丈夫。",
+      "spoken": "en"
+    },
+    {
+      "i": 9,
+      "start": 27.92,
+      "end": 30.36,
+      "en": "Thank you so much for coming today!",
+      "ja": "今日は来てくれて本当にありがとう！",
+      "spoken": "en"
+    },
+    {
+      "i": 10,
+      "start": 34.36,
+      "end": 36.8,
+      "en": "Oh, chat says the broth looks amazing.",
+      "ja": "スープがおいしそうってチャットが言ってる。",
+      "spoken": "en"
+    },
+    {
+      "i": 11,
+      "start": 37.2,
+      "end": 39.52,
+      "en": "I actually made it from scratch.",
+      "ja": "実はイチから作ったんだ。",
+      "spoken": "en"
+    },
+    {
+      "i": 12,
+      "start": 39.92,
+      "end": 42.24,
+      "en": "It took me like six hours.",
+      "ja": "6時間くらいかかった。",
+      "spoken": "ja"
+    },
+    {
+      "i": 13,
+      "start": 42.64,
+      "end": 44.96,
+      "en": "Don't tell anyone the secret recipe.",
+      "ja": "秘伝のレシピは誰にも言わないでね。",
+      "spoken": "en"
+    },
+    {
+      "i": 14,
+      "start": 45.36,
+      "end": 47.44,
+      "en": "Okay, next customer, please!",
+      "ja": "はい、次のお客さんどうぞ！",
+      "spoken": "en"
+    },
+    {
+      "i": 15,
+      "start": 47.84,
+      "end": 50.04,
+      "en": "You look kind of familiar.",
+      "ja": "なんか見覚えあるね。",
+      "spoken": "en"
+    },
+    {
+      "i": 16,
+      "start": 50.44,
+      "end": 52.52,
+      "en": "Have we met before?",
+      "ja": "前に会ったことある？",
+      "spoken": "en"
+    },
+    {
+      "i": 17,
+      "start": 52.92,
+      "end": 55.24,
+      "en": "Anyway, what can I get you?",
+      "ja": "とにかく、何にする？",
+      "spoken": "en"
+    },
+    {
+      "i": 18,
+      "start": 55.64,
+      "end": 57.96,
+      "en": "One miso ramen, coming right up!",
+      "ja": "味噌ラーメン一丁！",
+      "spoken": "en"
+    },
+    {
+      "i": 19,
+      "start": 58.36,
+      "end": 60.68,
+      "en": "See you next time, bye bye!",
+      "ja": "またね、バイバイ！",
+      "spoken": "en"
+    }
+  ]
+}

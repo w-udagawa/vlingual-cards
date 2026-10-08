@@ -186,6 +186,7 @@ accomplish,達成する,中級,動詞,"I want to accomplish my goals this year. 
 
 - 学習進捗はブラウザの localStorage（キー: `vlc_learning_v1`）に自動保存されます。スキーマの詳細は [docs/learning-model.md](docs/learning-model.md) を参照
 - 音声設定・テーマ・事務所の並び順もlocalStorageに保存されます
+- リスニングリーダーの表示設定は `vlc_reader_show_ja`（和訳表示）/ `vlc_reader_rate`（再生速度）に保存されます（学習進捗とは無関係）
 - **エクスポート/インポート**: アプリ内ヘルプモーダルの「学習データの引っ越し」からJSONテキストをコピペで書き出し・取り込みできます（端末間移行・バックアップ用）
 - 語彙一覧の「覚えた」チェックは学習進捗と完全統合されています（チェック=出題停止、外すと再出題）
 
@@ -194,6 +195,7 @@ accomplish,達成する,中級,動詞,"I want to accomplish my goals this year. 
 1. **ホーム（キャスト一覧）**: 事務所ごとのセクションにキャストを表示。⚙️ボタンで事務所の並び順を変更可能。復習がある日は「🔁 今日の復習」ボタンを表示
 2. **動画一覧**: 選んだキャストの動画をサムネイル付きで表示（語彙数・定着数・📋語彙一覧ボタン）。「全ての動画」でまとめて学習も可能
 3. **学習画面**: フラッシュカード + 3段階評価。ヘッダーに残り枚数と📋語彙一覧ボタン。戻るボタンは常に表示
+4. **リスニングリーダー**: ホームの「🎧 リスニングリーダー」から（文データがある動画だけ）。YouTube動画を再生しながら、話している英文が強調・自動スクロールされる。文をタップでその位置から再生、速度 0.75x/1x/1.25x、和訳の表示切替。iPhone/Safariでは画面ロックで再生が止まることがあります
 
 ## ディープリンク
 
@@ -201,8 +203,13 @@ accomplish,達成する,中級,動詞,"I want to accomplish my goals this year. 
 |-----|------|
 | `https://vlingual-cards.vercel.app/?video=<YouTube動画ID>` | その動画の学習画面に直行（動画の概要欄・固定コメント向け） |
 | `https://vlingual-cards.vercel.app/?cast=<キャスト名>` | そのキャストの動画一覧に直行 |
+| `https://vlingual-cards.vercel.app/?reader=<YouTube動画ID>` | その動画のリスニングリーダーに直行（`public/sentences/<ID>.json` がある動画） |
 
 ブラウザの戻る/進むボタンにも対応しています。
+
+## リスニングリーダーの文データ
+
+`public/sentences/index.json`（一覧）と `public/sentences/<YouTube動画ID>.json`（1本ぶんの文）を clipper 側が書き出します。形式・検証ルールは [CLAUDE.md](CLAUDE.md#文データの契約clipper-側が書き出す) を参照。時刻は YouTube 動画の秒軸、`spoken: "ja"` は日本語発話の英訳です。`index.json` が無い・空なら、ホームの導線は表示されません。
 
 ## 音声読み上げ
 

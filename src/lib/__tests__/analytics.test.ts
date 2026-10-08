@@ -131,6 +131,15 @@ describe('セッションガード（deck_open / study_start / study_complete / 
     expect(mockedTrack).toHaveBeenCalledTimes(2);
   });
 
+  it('reader_open は同じ動画なら2回目以降は送らず、別の動画なら送る', () => {
+    trackEvent('reader_open', { video_id: 'abc123', entry_source: 'link' });
+    trackEvent('reader_open', { video_id: 'abc123', entry_source: 'app' });
+    trackEvent('reader_open', { video_id: 'xyz789', entry_source: 'app' });
+
+    expect(mockedTrack).toHaveBeenCalledTimes(2);
+    expect(mockedTrack).toHaveBeenNthCalledWith(1, 'reader_open', { video_id: 'abc123', entry_source: 'link' });
+  });
+
   it('video_return はガードされず毎回送る', () => {
     trackEvent('video_return', { video_id: 'abc123', placement: 'card' });
     trackEvent('video_return', { video_id: 'abc123', placement: 'card' });

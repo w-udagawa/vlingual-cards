@@ -3,6 +3,10 @@ import { readPreference, writePreference } from './lib/preferences';
 import { trackEvent } from './lib/analytics';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import './App.css';
+import { ReaderList, ReaderScreen } from './Reader';
+import type { ReaderIndexItem } from './lib/reader';
+import { isValidYouTubeId } from './lib/reader';
+import { loadSentenceIndex } from './lib/readerData';
 import type { VocabCard, VideoGroup, CastGroup } from './types';
 import {
   SAMPLE_DATA,
@@ -380,7 +384,7 @@ function InstallBanner({ onDismiss }: { onDismiss: () => void }) {
   );
 }
 
-type Screen = 'cast-list' | 'video-list' | 'study';
+type Screen = 'cast-list' | 'video-list' | 'study' | 'reader-list' | 'reader';
 type VocabListSource = { title: string; cards: VocabCard[] };
 
 // ActiveSessionの組み立てを1箇所に（キューが空ならセッションなし）
@@ -409,6 +413,10 @@ function App() {
   const [selectedCast, setSelectedCast] = useState<CastGroup | null>(null);
   const [selectedVideo, setSelectedVideo] = useState<VideoGroup | null>(null);
   const allVideos = selectedCast?.videos ?? [];
+
+  // リスニングリーダー（sentences/index.json が読めたときだけホームに導線を出す）
+  const [readerIndex, setReaderIndex] = useState<ReaderIndexItem[] | null>(null);
+  const [readerVideoId, setReaderVideoId] = useState<string | null>(null);
 
   // 学習セッション
   const [scopeId, setScopeId] = useState<string | null>(null);
@@ -764,6 +772,37 @@ function App() {
     }
   };
 
+  // リスニングリーダー（学習セッションには触れない。保留中のスライドだけ破棄する）
+  const showReader = (videoId: string, entrySource: 'link' | 'app') => {
+    cancelPendingRate();
+    setScopeId(null);
+    setCurrentId(null);
+    setIsFlipped(false);
+    setReaderVideoId(videoId);
+    setScreen('reader');
+    trackEvent('reader_open', { video_id: videoId, entry_source: entrySource });
+  };
+
+  const handleOpenReaderList = () => {
+    setScreen('reader-list');
+  };
+
+  const handleSelectReader = (videoId: string) => {
+    showReader(videoId, 'app');
+    window.history.pushState({}, '', `?reader=${videoId}`);
+  };
+
+  const handleBackFromReader = () => {
+    if (readerIndex && readerIndex.length > 0) {
+      setScreen('reader-list');
+      setReaderVideoId(null);
+      window.history.replaceState({}, '', window.location.pathname);
+    } else {
+      setReaderVideoId(null);
+      handleBackToCastList();
+    }
+  };
+
   // インストールバナーを閉じる
   const handleDismissInstallBanner = () => {
     setShowInstallBanner(false);
@@ -896,6 +935,12 @@ function App() {
     loadSettings();
     loadCSV();
 
+    // 失敗・空なら null のまま（導線を出さないだけで、他の画面には影響しない）
+    let readerIndexCancelled = false;
+    loadSentenceIndex().then(items => {
+      if (!readerIndexCancelled) setReaderIndex(items);
+    });
+
     // PWAインストールバナー（初回のみ・すでにインストール済みなら出さない）
     const dismissed = readPreference(INSTALL_BANNER_DISMISSED_KEY);
     const isStandalone =
@@ -905,6 +950,7 @@ function App() {
       ? setTimeout(() => setShowInstallBanner(true), 3000)
       : undefined;
     return () => {
+      readerIndexCancelled = true;
       clearTimeout(installTimer);
       if (rateTimerRef.current !== null) clearTimeout(rateTimerRef.current);
     };
@@ -923,7 +969,12 @@ function App() {
       const params = new URLSearchParams(window.location.search);
       const castParam = params.get('cast');
       const videoParam = params.get('video');
+      const readerParam = params.get('reader');
 
+      if (readerParam && isValidYouTubeId(readerParam)) {
+        showReader(readerParam, 'link');
+        return;
+      }
       if (videoParam) {
         const video = allCasts.flatMap(c => c.videos).find(v => v.id === videoParam);
         if (video) {
@@ -940,7 +991,7 @@ function App() {
       }
       if (fromPop) {
         showCastList();
-      } else if (castParam || videoParam) {
+      } else if (castParam || videoParam || readerParam !== null) {
         window.history.replaceState({}, '', window.location.pathname);
       }
     };
@@ -1052,6 +1103,35 @@ function App() {
     );
   }
 
+  // リスニングリーダー
+  if (screen === 'reader' && readerVideoId) {
+    return (
+      <div className="app">
+        <ReaderScreen
+          key={readerVideoId}
+          videoId={readerVideoId}
+          onBack={handleBackFromReader}
+          headerButtons={headerButtons}
+        />
+        {helpModal}
+      </div>
+    );
+  }
+
+  if (screen === 'reader-list' && readerIndex && readerIndex.length > 0) {
+    return (
+      <div className="app">
+        <ReaderList
+          items={readerIndex}
+          onSelect={handleSelectReader}
+          onBack={handleBackToCastList}
+          headerButtons={headerButtons}
+        />
+        {helpModal}
+      </div>
+    );
+  }
+
   // キャスト一覧画面
   if (screen === 'cast-list' && allCasts.length > 0) {
     const totalWords = allCasts.reduce((sum, cast) => sum + cast.wordCount, 0);
@@ -1088,6 +1168,17 @@ function App() {
               <span className="review-entry-body">
                 <span className="review-entry-title">今日の復習 {dueTodayCount}枚</span>
                 <span className="review-entry-subtitle">前に学んだ単語をサッと確認しましょう</span>
+              </span>
+            </button>
+          )}
+
+          {/* リスニングリーダー（sentences/index.json があるときだけ） */}
+          {readerIndex && readerIndex.length > 0 && (
+            <button className="review-entry reader-entry" onClick={handleOpenReaderList}>
+              <span className="review-entry-icon">🎧</span>
+              <span className="review-entry-body">
+                <span className="review-entry-title">リスニングリーダー</span>
+                <span className="review-entry-subtitle">動画を聞きながら英文を目で追う（{readerIndex.length}本）</span>
               </span>
             </button>
           )}

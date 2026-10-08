@@ -15,10 +15,16 @@ type AllowedValue = string | number | boolean | null;
 const MAX_PROPS = 2;
 const GUARD_PREFIX = 'vlc_evt_';
 
-// deck_open / study_start / study_complete / review_start は「同じデッキ・同じセッションでの
-// 二重送信」を防ぐため、セッション（sessionStorage）単位で一度だけ送る。
+// deck_open / study_start / study_complete / review_start / reader_open は「同じデッキ・同じ
+// セッションでの二重送信」を防ぐため、セッション（sessionStorage）単位で一度だけ送る。
 // React の再描画・StrictModeの二重effect・同一タブでのリロードをまたいでガードが効く。
-const GUARDED_EVENTS = new Set(['deck_open', 'study_start', 'study_complete', 'review_start']);
+const GUARDED_EVENTS = new Set([
+  'deck_open',
+  'study_start',
+  'study_complete',
+  'review_start',
+  'reader_open',
+]);
 
 function isDisabled(): boolean {
   try {
